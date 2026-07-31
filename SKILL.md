@@ -91,10 +91,6 @@ PYTHONPATH= mineru_py310/Scripts/mineru.exe -p paper.pdf -o mineru_output -b pip
 cat mineru_output/paper/auto/paper.md
 ```
 
-## 備用方案
-
-若 MinerU 無法安裝，使用 `deepseek-ocr-pdf` skill（DeepSeek API OCR，免本機依賴）。
-
 ## 相關 Skills
 
 - `deepseek-ocr-pdf` — API 替代方案
