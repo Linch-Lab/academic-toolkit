@@ -1,46 +1,58 @@
-# MinerU Paper Reading — 可重現安裝與使用
+# Academic Toolkit
 
-## 環境
+> 學術研究工具鏈 — 文獻解析 + 數據繪圖，開源分享給研究社群
+> Academic research toolchain: paper parsing + data visualization
 
-- **Python**: 3.10（必要，3.11+ 有 transformers 相容問題）
-- **OS**: Windows 10/11
-- **GPU**: 可選（CPU 可用，較慢）
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 
-## 一鍵安裝
+## 📦 內容 / Contents
+
+| 工具 | 說明 | 目錄 |
+|------|------|------|
+| **MinerU Paper Reading** | 學術 PDF/DOCX 解析 → 結構化 Markdown（表格、LaTeX 公式、OCR）。Python 3.10 隔離環境、一鍵安裝 | [`MinerU-Paper-Reading/`](MinerU-Paper-Reading/) |
+| **XRD Plotter** | XRD 數據繪圖 GUI（Tkinter）——實驗數據 + PDF 資料庫譜線對照，互動式微調與標註 | [`Matplotlib-skills/XRD/`](Matplotlib-skills/XRD/) |
+
+## 🚀 快速開始
+
+### 文獻解析（MinerU）
 
 ```bash
-# 1. 建立 Python 3.10 獨立環境
+# 1. 建立 Python 3.10 環境（必要）
 uv python install 3.10
 uv venv mineru_py310 -p 3.10
 
-# 2. 安裝 MinerU 及所有依賴
+# 2. 安裝
 uv pip install -p mineru_py310 "mineru[all]" "transformers>=4.44,<4.45"
 
-# 3. 運行（必須清除 PYTHONPATH 避免污染）
-# Windows CMD:
-set PYTHONPATH=
-mineru_py310\Scripts\mineru.exe -p paper.pdf -o output -b pipeline
-
-# Git Bash:
+# 3. 解析論文（Windows Git Bash）
 PYTHONPATH= mineru_py310/Scripts/mineru.exe -p paper.pdf -o output -b pipeline
 ```
 
-## 關鍵陷阱
+詳見 [`MinerU-Paper-Reading/README.md`](MinerU-Paper-Reading/README.md)
 
-| 問題 | 原因 | 解法 |
-|------|------|------|
-| `ModuleNotFoundError: torch/torchvision/...` | `mineru` 未含完整依賴 | 改用 `mineru[all]` |
-| 載入 hermes venv 的套件 | `PYTHONPATH` 指向 hermes | `PYTHONPATH=` 清空後執行 |
-| `tokenizers` ModelWrapper 錯誤 | venv 中 transformers 版本衝突 | Python 3.10 獨立環境 |
-| `find_pruneable_heads_and_indices` | transformers ≥4.45 | 鎖定 `transformers>=4.44,<4.45` |
+### XRD 繪圖
 
-## 產出
+```bash
+pip install matplotlib pandas numpy
+python Matplotlib-skills/XRD/xrd_plotter.py
+```
 
-MinerU 會為每個 PDF 建立 `<output>/<filename>/auto/` 目錄，包含：
-- `<filename>.md` — 結構化 Markdown（含表格、LaTeX 公式）
-- `<filename>_content_list.json` — 段落級內容清單
-- `<filename>_model.json` — 版面分析結果
+詳見 [`Matplotlib-skills/XRD/README.md`](Matplotlib-skills/XRD/README.md)
 
-## 備用方案
+## 📖 誰適合用
 
-若 MinerU 無法安裝，見 `skills/deepseek-ocr-pdf` skill — 用 DeepSeek API 直接 OCR 論文 PDF。
+- 研究生/學者：論文 PDF 解析、XRD 數據可視化
+- 完全沒裝過 Python 的人：各工具 README 含從零安裝教學
+
+## 🤝 貢獻
+
+歡迎 fork 與 PR——新增學術工具 skill 請遵循既有結構（`<Tool-Name>/SKILL.md` + `README.md`）。
+
+## 📄 授權
+
+MIT License — 程式碼與文件均為 MIT（見 [LICENSE](LICENSE)）。
+
+---
+
+*Maintained by Linch-Lab (NCU 能源所)*
