@@ -90,10 +90,13 @@ class PolarizationData:
         return p
 
     def get_xy(self):
-        """依 invert_xy 回傳 (x, y)"""
+        """依 invert_xy 回傳 (x, y)
+        invert_xy=False（預設）: X=I, Y=V（電化學慣例）
+        invert_xy=True:          X=V, Y=I
+        """
         if self.invert_xy:
-            return self.get_i_density(), self.get_v()
-        return self.get_v(), self.get_i_density()
+            return self.get_v(), self.get_i_density()
+        return self.get_i_density(), self.get_v()
 
 
 # ------------------------------------------------------------------
@@ -542,31 +545,25 @@ class PolarizationPlotterApp:
         for lbl in self.ax.get_yticklabels():
             lbl.set_fontname(self.font_name)
 
-        # 軸範圍：預設 0 ~ max（第一象限）；使用者可自訂覆寫
+        # 軸範圍：預設 auto scale；使用者輸入自訂值時才固定
         if self.curves:
-            all_x = [x for c in self.curves for x in c.get_xy()[0]]
-            all_y = [y for c in self.curves for y in c.get_xy()[1]]
-            xmax = max(all_x + [1e-9])
-            ymax = max(all_y + [1e-9])
-            # 預設 0 開始；若使用者輸入則用輸入值
+            self.ax.relim()
+            self.ax.autoscale()
+            # 使用者輸入 X/Y 範圍 → 覆寫
             try:
-                xmin = float(self.xmin_var.get()) if self.xmin_var.get() else 0.0
+                if self.xmin_var.get() or self.xmax_var.get():
+                    xmin = float(self.xmin_var.get()) if self.xmin_var.get() else None
+                    xmax_u = float(self.xmax_var.get()) if self.xmax_var.get() else None
+                    self.ax.set_xlim(xmin, xmax_u)
             except ValueError:
-                xmin = 0.0
+                pass
             try:
-                xmax_u = float(self.xmax_var.get()) if self.xmax_var.get() else xmax
+                if self.ymin_var.get() or self.ymax_var.get():
+                    ymin = float(self.ymin_var.get()) if self.ymin_var.get() else None
+                    ymax_u = float(self.ymax_var.get()) if self.ymax_var.get() else None
+                    self.ax.set_ylim(ymin, ymax_u)
             except ValueError:
-                xmax_u = xmax
-            try:
-                ymin = float(self.ymin_var.get()) if self.ymin_var.get() else 0.0
-            except ValueError:
-                ymin = 0.0
-            try:
-                ymax_u = float(self.ymax_var.get()) if self.ymax_var.get() else ymax
-            except ValueError:
-                ymax_u = ymax
-            self.ax.set_xlim(xmin, xmax_u)
-            self.ax.set_ylim(ymin, ymax_u)
+                pass
 
         if power_plotted:
             # 恢復右軸顯示（含刻度與標題）
