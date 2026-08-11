@@ -43,7 +43,7 @@ class PolarizationData:
     """單條極化曲線"""
     def __init__(self, name, df, v_col, i_col,
                  color, current_unit='A/cm2', active_area=1.0,
-                 negate=False, marker_on=True, marker_style='o',
+                 negate=False, negate_v=False, marker_on=True, marker_style='o',
                  line_style='-', line_width=1.0, show_power=True,
                  power_unit='W/cm2', invert_xy=False):
         self.name = name
@@ -53,7 +53,8 @@ class PolarizationData:
         self.color = color
         self.current_unit = current_unit      # 'A', 'A/cm2', 'mA/cm2'
         self.active_area = active_area        # cm²
-        self.negate = negate                  # 正負號切換
+        self.negate = negate                  # 電流取絕對值
+        self.negate_v = negate_v              # 電壓取絕對值
         self.marker_on = marker_on
         self.marker_style = marker_style
         self.line_style = line_style
@@ -63,11 +64,14 @@ class PolarizationData:
         self.invert_xy = invert_xy            # X/Y 軸角色
 
     def get_v(self):
-        """電壓陣列"""
-        return self.df[self.v_col].astype(float).values
+        """電壓陣列（可選取絕對值）"""
+        v = self.df[self.v_col].astype(float).values
+        if self.negate_v:
+            v = np.abs(v)
+        return v
 
     def get_i_density(self):
-        """電流密度 A/cm²（已換算 + 正負號）"""
+        """電流密度 A/cm²（已換算；negate = 取絕對值，確保第一象限）"""
         i = self.df[self.i_col].astype(float).values
         if self.current_unit == 'A':
             i = i / self.active_area
@@ -75,7 +79,7 @@ class PolarizationData:
             i = i / 1000.0
         # 'A/cm2' 直接使用
         if self.negate:
-            i = -i
+            i = np.abs(i)   # 取絕對值——負數據翻正，軸維持第一象限
         return i
 
     def get_power(self):
@@ -163,10 +167,33 @@ class PolarizationPlotterApp:
         fonts = ['DejaVu Sans', 'Arial', 'Times New Roman', 'SimHei', 'Microsoft JhengHei']
         tk.OptionMenu(gf, self.font_var, *fonts, command=lambda _: self._apply_global()).grid(row=2, column=1, sticky="ew")
 
+        # 字體大小
         tk.Label(gf, text="字體大小:").grid(row=3, column=0, sticky="w")
         self.size_var = tk.IntVar(value=self.font_size)
         tk.Spinbox(gf, from_=6, to=30, textvariable=self.size_var, width=5,
                    command=self._apply_global).grid(row=3, column=1, sticky="w")
+
+        # 軸範圍
+        tk.Label(gf, text="軸範圍:").grid(row=4, column=0, sticky="w")
+        xf = tk.Frame(gf)
+        xf.grid(row=4, column=1, sticky="ew")
+        self.xmin_var = tk.StringVar(value="")   # 空 = 自動（0 ~ max）
+        self.xmax_var = tk.StringVar(value="")
+        tk.Label(xf, text="X:").pack(side=tk.LEFT)
+        tk.Entry(xf, textvariable=self.xmin_var, width=5).pack(side=tk.LEFT)
+        tk.Label(xf, text="–").pack(side=tk.LEFT)
+        tk.Entry(xf, textvariable=self.xmax_var, width=5).pack(side=tk.LEFT)
+        tk.Button(xf, text="套用", command=self.redraw).pack(side=tk.LEFT, padx=2)
+
+        yf = tk.Frame(gf)
+        yf.grid(row=5, column=1, sticky="ew")
+        self.ymin_var = tk.StringVar(value="")   # 空 = 自動
+        self.ymax_var = tk.StringVar(value="")
+        tk.Label(yf, text="Y:").pack(side=tk.LEFT)
+        tk.Entry(yf, textvariable=self.ymin_var, width=5).pack(side=tk.LEFT)
+        tk.Label(yf, text="–").pack(side=tk.LEFT)
+        tk.Entry(yf, textvariable=self.ymax_var, width=5).pack(side=tk.LEFT)
+        tk.Button(yf, text="套用", command=self.redraw).pack(side=tk.LEFT, padx=2)
 
         gf.columnconfigure(1, weight=1)
 
@@ -361,8 +388,11 @@ class PolarizationPlotterApp:
         # 正負號切換
         nf = tk.Frame(win); nf.pack(fill=tk.X, padx=8)
         neg_var = tk.BooleanVar(value=c.negate)
-        tk.Checkbutton(nf, text="電流密度正負號切換 (−I)", variable=neg_var,
+        tk.Checkbutton(nf, text="電流取絕對值 (|I|)", variable=neg_var,
                        command=lambda: (setattr(c, 'negate', neg_var.get()), self.redraw())).pack(side=tk.LEFT)
+        negv_var = tk.BooleanVar(value=c.negate_v)
+        tk.Checkbutton(nf, text="電壓取絕對值 (|V|)", variable=negv_var,
+                       command=lambda: (setattr(c, 'negate_v', negv_var.get()), self.redraw())).pack(side=tk.LEFT, padx=(8, 0))
 
         # 功率曲線（該曲線）
         pf = tk.Frame(win); pf.pack(fill=tk.X, padx=8)
@@ -511,6 +541,32 @@ class PolarizationPlotterApp:
             lbl.set_fontname(self.font_name)
         for lbl in self.ax.get_yticklabels():
             lbl.set_fontname(self.font_name)
+
+        # 軸範圍：預設 0 ~ max（第一象限）；使用者可自訂覆寫
+        if self.curves:
+            all_x = [x for c in self.curves for x in c.get_xy()[0]]
+            all_y = [y for c in self.curves for y in c.get_xy()[1]]
+            xmax = max(all_x + [1e-9])
+            ymax = max(all_y + [1e-9])
+            # 預設 0 開始；若使用者輸入則用輸入值
+            try:
+                xmin = float(self.xmin_var.get()) if self.xmin_var.get() else 0.0
+            except ValueError:
+                xmin = 0.0
+            try:
+                xmax_u = float(self.xmax_var.get()) if self.xmax_var.get() else xmax
+            except ValueError:
+                xmax_u = xmax
+            try:
+                ymin = float(self.ymin_var.get()) if self.ymin_var.get() else 0.0
+            except ValueError:
+                ymin = 0.0
+            try:
+                ymax_u = float(self.ymax_var.get()) if self.ymax_var.get() else ymax
+            except ValueError:
+                ymax_u = ymax
+            self.ax.set_xlim(xmin, xmax_u)
+            self.ax.set_ylim(ymin, ymax_u)
 
         if power_plotted:
             # 恢復右軸顯示（含刻度與標題）
