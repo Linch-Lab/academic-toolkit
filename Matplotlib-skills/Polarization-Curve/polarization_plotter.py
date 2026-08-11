@@ -195,7 +195,9 @@ class PolarizationPlotterApp:
         self.fig = plt.Figure(figsize=(7, 5), dpi=100)
         self.ax = self.fig.add_subplot(111)
         self.ax2 = self.ax.twinx()  # 右 Y 軸（功率）
-        self.ax2.set_visible(False)
+        self.ax2.spines['right'].set_visible(False)
+        self.ax2.set_yticks([])
+        self.ax2.set_ylabel('')
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.plot_frame)
         self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
         self.toolbar = NavigationToolbar2Tk(self.canvas, self.plot_frame)
@@ -467,7 +469,6 @@ class PolarizationPlotterApp:
     def redraw(self):
         self.ax.clear()
         self.ax2.clear()
-        self.ax2.set_visible(False)
 
         invert = self.axis_var.get().startswith("X=V")
         xlabel = 'Current Density (A/cm²)' if not invert else 'Voltage (V)'
@@ -512,10 +513,16 @@ class PolarizationPlotterApp:
             lbl.set_fontname(self.font_name)
 
         if power_plotted:
-            self.ax2.set_visible(True)
+            # 恢復右軸顯示（含刻度與標題）
+            self.ax2.spines['right'].set_visible(True)
             unit = 'W/cm²' if any(c.power_unit == 'W/cm2' for c in self.curves if c.show_power) else 'mW/cm²'
             self.ax2.set_ylabel(f'Power Density ({unit})', fontsize=self.font_size, fontweight='bold')
             self.ax2.tick_params(labelsize=self.font_size - 1)
+        else:
+            # 無功率曲線時隱藏右軸
+            self.ax2.spines['right'].set_visible(False)
+            self.ax2.set_yticks([])
+            self.ax2.set_ylabel('')
 
         if self.curves:
             leg = self.ax.legend(loc='upper right', frameon=True, fontsize=self.font_size - 1)
