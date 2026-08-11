@@ -12,6 +12,7 @@
 |------|------|------|
 | **MinerU Paper Reading** | 學術 PDF/DOCX 解析 → 結構化 Markdown（表格、LaTeX 公式、OCR）。Python 3.10 隔離環境、一鍵安裝 | [`MinerU-Paper-Reading/`](MinerU-Paper-Reading/) |
 | **XRD Plotter** | XRD 數據繪圖 GUI（Tkinter）——實驗數據 + PDF 資料庫譜線對照，互動式微調與標註 | [`Matplotlib-skills/XRD/`](Matplotlib-skills/XRD/) |
+| **Polarization Plotter** | 極化曲線繪圖 GUI（Tkinter）——FC/EC 的 I-V 曲線 + 功率密度疊圖、active area 換算、雙 Y 軸 | [`Matplotlib-skills/Polarization-Curve/`](Matplotlib-skills/Polarization-Curve/) |
 
 ## 🚀 快速開始
 
