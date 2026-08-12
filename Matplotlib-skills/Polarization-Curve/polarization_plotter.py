@@ -262,30 +262,33 @@ class PolarizationPlotterApp:
                 if len(df.columns) < 2:
                     messagebox.showerror("格式錯誤", f"{os.path.basename(f)}\n至少需要 2 欄")
                     continue
-                # 彈出欄位選擇視窗
+                # 彈出欄位選擇視窗（含單位與 active area）
                 name = os.path.splitext(os.path.basename(f))[0]
-                v_col, i_col = self._ask_columns(df, name)
-                if v_col is None:
+                info = self._ask_columns(df, name)
+                if info is None:
                     continue
+                v_col, i_col, unit, area = info
                 self.curves.append(PolarizationData(
-                    name, df, v_col, i_col, self._pick_color(len(self.curves))))
+                    name, df, v_col, i_col, self._pick_color(len(self.curves)),
+                    current_unit=unit, active_area=area))
                 self._refresh_list()
             except Exception as e:
                 messagebox.showerror("讀取失敗", f"{f}\n{e}")
         self.redraw()
 
     def _ask_columns(self, df, fname):
-        """彈出視窗選 V 欄 / I 欄"""
+        """彈出視窗：選 V 欄 / I 欄 + 電流單位 + active area"""
         win = tk.Toplevel(self.root)
-        win.title(f"選擇欄位: {fname}")
-        win.geometry("380x200")
+        win.title(f"數據設定: {fname}")
+        win.geometry("420x260")
         win.transient(self.root)
         win.grab_set()
 
         cols = list(df.columns)
-        result = {'v': None, 'i': None}
+        result = {'v': None, 'i': None, 'unit': 'A/cm2', 'area': 1.0}
 
-        tk.Label(win, text=f"檔案: {fname}\n選擇哪欄是電壓 (V)、哪欄是電流 (I)").pack(pady=8)
+        tk.Label(win, text=f"檔案: {fname}", font=("Segoe UI", 9, "bold")).pack(pady=(8, 2))
+        tk.Label(win, text="選擇電壓/電流欄位與電流單位").pack()
 
         rf = tk.Frame(win); rf.pack(pady=4)
         tk.Label(rf, text="電壓 (V):").pack(side=tk.LEFT)
@@ -297,9 +300,33 @@ class PolarizationPlotterApp:
         i_var = tk.StringVar(value=cols[1] if len(cols) > 1 else cols[0])
         tk.OptionMenu(cf, i_var, *cols).pack(side=tk.LEFT)
 
+        uf = tk.Frame(win); uf.pack(pady=4)
+        tk.Label(uf, text="電流單位:").pack(side=tk.LEFT)
+        unit_var = tk.StringVar(value='A/cm2')
+        tk.OptionMenu(uf, unit_var, 'A', 'A/cm2', 'mA/cm2').pack(side=tk.LEFT)
+        tk.Label(uf, text="   Active Area (cm²):").pack(side=tk.LEFT)
+        area_var = tk.StringVar(value="1")
+        area_entry = tk.Entry(uf, textvariable=area_var, width=6)
+        area_entry.pack(side=tk.LEFT)
+
+        def on_unit_change(*_):
+            # 單位 = A 時 active area 才需要（否則停用）
+            if unit_var.get() == 'A':
+                area_entry.config(state='normal')
+            else:
+                area_entry.config(state='disabled')
+
+        unit_var.trace_add('write', on_unit_change)
+        on_unit_change()
+
         def ok():
             result['v'] = v_var.get()
             result['i'] = i_var.get()
+            result['unit'] = unit_var.get()
+            try:
+                result['area'] = float(area_var.get()) if area_var.get() else 1.0
+            except ValueError:
+                result['area'] = 1.0
             win.destroy()
 
         def cancel():
@@ -311,8 +338,8 @@ class PolarizationPlotterApp:
 
         win.wait_window()
         if result['v'] is None:
-            return None, None
-        return result['v'], result['i']
+            return None
+        return result['v'], result['i'], result['unit'], result['area']
 
     def remove_curve(self):
         sel = self.listbox.curselection()
