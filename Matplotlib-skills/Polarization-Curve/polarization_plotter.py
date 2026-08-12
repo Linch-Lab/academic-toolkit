@@ -622,6 +622,9 @@ class PolarizationPlotterApp:
         except ValueError:
             n = 4
 
+        # 啟用子刻度（必須呼叫 minorticks_on 才顯示）
+        ax.minorticks_on()
+
         # 主刻度間距 → 子刻度間距 = 主間距/(n+1)
         if len(major_ticks) >= 2:
             major_step = abs(major_ticks[1] - major_ticks[0])
