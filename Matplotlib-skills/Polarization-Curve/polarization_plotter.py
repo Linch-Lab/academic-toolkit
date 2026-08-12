@@ -180,14 +180,20 @@ class PolarizationPlotterApp:
 
         # 字體大小（軸標題 / 刻度分開）
         tk.Label(gf, text="標題字體:").grid(row=4, column=0, sticky="w")
-        self.title_size_var = tk.IntVar(value=self.font_size)
-        tk.Spinbox(gf, from_=6, to=30, textvariable=self.title_size_var, width=5,
-                   command=self._apply_global).grid(row=4, column=1, sticky="w")
+        self.title_size_var = tk.IntVar(value=self.title_size)
+        ts_spin = tk.Spinbox(gf, from_=6, to=30, textvariable=self.title_size_var, width=5,
+                             command=self._apply_global)
+        ts_spin.grid(row=4, column=1, sticky="w")
+        ts_spin.bind('<Return>', lambda e: self._apply_global())
+        ts_spin.bind('<FocusOut>', lambda e: self._apply_global())
 
         tk.Label(gf, text="刻度字體:").grid(row=5, column=0, sticky="w")
-        self.tick_size_var = tk.IntVar(value=self.font_size - 1)
-        tk.Spinbox(gf, from_=6, to=30, textvariable=self.tick_size_var, width=5,
-                   command=self._apply_global).grid(row=5, column=1, sticky="w")
+        self.tick_size_var = tk.IntVar(value=self.tick_size)
+        tk_spin = tk.Spinbox(gf, from_=6, to=30, textvariable=self.tick_size_var, width=5,
+                             command=self._apply_global)
+        tk_spin.grid(row=5, column=1, sticky="w")
+        tk_spin.bind('<Return>', lambda e: self._apply_global())
+        tk_spin.bind('<FocusOut>', lambda e: self._apply_global())
 
         # 功率密度單位
         tk.Label(gf, text="功率單位:").grid(row=6, column=0, sticky="w")
@@ -477,9 +483,18 @@ class PolarizationPlotterApp:
     # 全域
     # ------------------------------------------------------------------
     def _apply_global(self):
-        self.font_name = self.font_var.get()
-        self.title_size = self.title_size_var.get()
-        self.tick_size = self.tick_size_var.get()
+        try:
+            self.font_name = self.font_var.get()
+        except Exception:
+            pass
+        try:
+            self.title_size = int(self.title_size_var.get())
+        except (ValueError, tk.TclError):
+            pass
+        try:
+            self.tick_size = int(self.tick_size_var.get())
+        except (ValueError, tk.TclError):
+            pass
         self.redraw()
 
     # ------------------------------------------------------------------
