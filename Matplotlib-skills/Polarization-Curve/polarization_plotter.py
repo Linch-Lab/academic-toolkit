@@ -772,8 +772,9 @@ class PolarizationPlotterApp:
             self.ax2.tick_params(labelsize=self.tick_size)
             # 將 Y2 標題推到右軸外側——位置隨刻度字體大小動態調整
             # （字體越大，標題越靠右，維持與刻度的近距離）
-            # 基準：tick_size 9 → 1.12；每 +1pt → +0.012
-            offset = 1.12 + max(0, self.tick_size - 9) * 0.012
+            # 像素實測：1.04→重疊(-12px)、1.06→碰觸(-2px)、1.08→8px 理想、1.10→18px 遠
+            # 基準：tick_size 9 → 1.08；每 +1pt → +0.012
+            offset = 1.08 + max(0, self.tick_size - 9) * 0.012
             self.ax2.yaxis.set_label_coords(offset, 0.5)
             # Y2 軸範圍
             try:
@@ -816,7 +817,7 @@ class PolarizationPlotterApp:
         if power_plotted:
             # 有功率曲線時，右側留空間給 Y2 標題（tight_layout 不會處理 twinx 標題）
             # 右側空間也隨刻度字體調整
-            right = 0.86 - max(0, self.tick_size - 9) * 0.005
+            right = 0.87 - max(0, self.tick_size - 9) * 0.005
             self.fig.subplots_adjust(right=right)
         self.canvas.draw_idle()
 
