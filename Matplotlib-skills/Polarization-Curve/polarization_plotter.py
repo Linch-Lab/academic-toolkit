@@ -200,30 +200,35 @@ class PolarizationPlotterApp:
         axf = tk.Frame(left)
         axf.pack(fill=tk.X)
 
-        def make_axis_row(parent, row, label, min_var, max_var, n_var, n_label="刻度數"):
+        def make_axis_row(parent, row, label, min_var, max_var, n_var, minor_var):
             tk.Label(parent, text=label).grid(row=row, column=0, sticky="w", padx=(0, 2))
             f = tk.Frame(parent)
             f.grid(row=row, column=1, sticky="ew")
             tk.Entry(f, textvariable=min_var, width=5).pack(side=tk.LEFT)
             tk.Label(f, text="–").pack(side=tk.LEFT)
             tk.Entry(f, textvariable=max_var, width=5).pack(side=tk.LEFT)
-            tk.Label(f, text=n_label).pack(side=tk.LEFT, padx=(4, 0))
+            tk.Label(f, text="刻度數").pack(side=tk.LEFT, padx=(4, 0))
             tk.Entry(f, textvariable=n_var, width=3).pack(side=tk.LEFT)
+            tk.Checkbutton(f, text="子", variable=minor_var,
+                           command=self.redraw).pack(side=tk.LEFT, padx=(4, 0))
             parent.columnconfigure(1, weight=1)
 
         self.xmin_var = tk.StringVar(value="")
         self.xmax_var = tk.StringVar(value="")
         self.xn_var = tk.StringVar(value="")
+        self.xminor_var = tk.BooleanVar(value=False)
         self.ymin_var = tk.StringVar(value="")
         self.ymax_var = tk.StringVar(value="")
         self.yn_var = tk.StringVar(value="")
+        self.yminor_var = tk.BooleanVar(value=False)
         self.y2min_var = tk.StringVar(value="")
         self.y2max_var = tk.StringVar(value="")
         self.y2n_var = tk.StringVar(value="")
+        self.y2minor_var = tk.BooleanVar(value=False)
 
-        make_axis_row(axf, 0, "X:", self.xmin_var, self.xmax_var, self.xn_var)
-        make_axis_row(axf, 1, "Y:", self.ymin_var, self.ymax_var, self.yn_var)
-        make_axis_row(axf, 2, "Y₂:", self.y2min_var, self.y2max_var, self.y2n_var)
+        make_axis_row(axf, 0, "X:", self.xmin_var, self.xmax_var, self.xn_var, self.xminor_var)
+        make_axis_row(axf, 1, "Y:", self.ymin_var, self.ymax_var, self.yn_var, self.yminor_var)
+        make_axis_row(axf, 2, "Y₂:", self.y2min_var, self.y2max_var, self.y2n_var, self.y2minor_var)
 
         tk.Button(left, text="套用軸設定", command=self.redraw).pack(fill=tk.X, pady=(2, 0))
 
@@ -626,6 +631,8 @@ class PolarizationPlotterApp:
                         self.ax.set_xticks(np.linspace(lo, hi, n))
             except ValueError:
                 pass
+            # X 軸子刻度
+            self.ax.minorticks_on() if self.xminor_var.get() else self.ax.minorticks_off()
             # Y1 軸刻度數量
             try:
                 if self.yn_var.get():
@@ -635,6 +642,8 @@ class PolarizationPlotterApp:
                         self.ax.set_yticks(np.linspace(lo, hi, n))
             except ValueError:
                 pass
+            # Y1 軸子刻度
+            self.ax.minorticks_on() if self.yminor_var.get() else self.ax.minorticks_off()
 
         if power_plotted:
             # 恢復右軸顯示（含刻度與標題）
@@ -660,11 +669,14 @@ class PolarizationPlotterApp:
                         self.ax2.set_yticks(np.linspace(lo, hi, n))
             except ValueError:
                 pass
+            # Y2 軸子刻度
+            self.ax2.minorticks_on() if self.y2minor_var.get() else self.ax2.minorticks_off()
         else:
             # 無功率曲線時隱藏右軸
             self.ax2.spines['right'].set_visible(False)
             self.ax2.set_yticks([])
             self.ax2.set_ylabel('')
+            self.ax2.minorticks_off()
 
         if self.curves:
             leg = self.ax.legend(loc='upper right', frameon=True, fontsize=self.tick_size)
