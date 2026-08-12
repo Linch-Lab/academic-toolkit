@@ -580,7 +580,7 @@ class PolarizationPlotterApp:
             marker = c.marker_style if c.marker_on and c.marker_style != 'None' else None
             self.ax.plot(x_disp, y, label=c.name, color=c.color,
                          linestyle=c.line_style, linewidth=c.line_width,
-                         marker=marker, markersize=3, markevery=5)
+                         marker=marker, markersize=3)
 
             # 功率曲線（右 Y 軸）——功率顯示隨功率單位設定
             if c.show_power and self.power_var.get() and not invert:
@@ -611,10 +611,9 @@ class PolarizationPlotterApp:
         self.ax.set_xlabel(xlabel, fontsize=self.title_size, fontweight='bold', fontname=self.font_name)
         self.ax.set_ylabel(ylabel, fontsize=self.title_size, fontweight='bold', fontname=self.font_name)
         self.ax.tick_params(labelsize=self.tick_size)
-        for lbl in self.ax.get_xticklabels():
-            lbl.set_fontname(self.font_name)
-        for lbl in self.ax.get_yticklabels():
-            lbl.set_fontname(self.font_name)
+        if power_plotted:
+            self.ax2.set_ylabel(f'Power Density ({p_unit_txt})', fontsize=self.title_size, fontweight='bold')
+            self.ax2.tick_params(labelsize=self.tick_size)
 
         # 軸範圍：預設 auto scale；使用者輸入自訂值時才固定
         if self.curves:
@@ -667,6 +666,8 @@ class PolarizationPlotterApp:
             p_unit_txt = self.power_unit_var.get()
             self.ax2.set_ylabel(f'Power Density ({p_unit_txt})', fontsize=self.title_size, fontweight='bold')
             self.ax2.tick_params(labelsize=self.tick_size)
+            # 將 Y2 標題推到右軸外側（避免與 Y1 標題重疊）
+            self.ax2.yaxis.set_label_coords(1.06, 0.5)
             # Y2 軸範圍
             try:
                 if self.y2min_var.get() or self.y2max_var.get():
@@ -697,7 +698,17 @@ class PolarizationPlotterApp:
             leg = self.ax.legend(loc='upper right', frameon=True, fontsize=self.tick_size)
             leg.set_draggable(True)
 
+        # 統一設定刻度字體（在所有 set_xticks/子刻度之後執行，確保不被覆蓋）
+        # 刻度與軸標題綁定相同字體（font_name）
+        for lbl in self.ax.get_xticklabels() + self.ax.get_yticklabels():
+            lbl.set_fontname(self.font_name)
+        for lbl in self.ax2.get_xticklabels() + self.ax2.get_yticklabels():
+            lbl.set_fontname(self.font_name)
+
         self.fig.tight_layout()
+        if power_plotted:
+            # 有功率曲線時，右側留空間給 Y2 標題（tight_layout 不會處理 twinx 標題）
+            self.fig.subplots_adjust(right=0.85)
         self.canvas.draw_idle()
 
     # ------------------------------------------------------------------
