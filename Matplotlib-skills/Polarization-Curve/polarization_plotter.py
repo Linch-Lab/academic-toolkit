@@ -572,21 +572,27 @@ class PolarizationPlotterApp:
         if leg is None: return
         if leg.get_window_extent().contains(event.x, event.y):
             self.legend_dragging = True
-            # 記錄按下位置與圖例位置的偏移（像素）
-            leg_win = leg.get_window_extent()
-            self._drag_offset = (event.x - leg_win.x0, event.y - leg_win.y0)
+            # 記錄按下時的滑鼠位置與圖例 anchor
+            self._drag_last = (event.x, event.y)
+            self._drag_anchor = leg.get_bbox_to_anchor()
 
     def _on_legend_drag(self, event):
         if not self.legend_dragging or event.inaxes is None: return
         leg = self.ax.get_legend()
         if leg is None: return
-        # 用像素座標（含拖曳偏移）→ 圖座標（figure fraction）
-        # 這樣滑鼠點到圖例哪裡，圖例就跟到哪裡（無位置差）
-        ox, oy = getattr(self, '_drag_offset', (0, 0))
-        # 用 transFigure.inverted() 把畫布像素轉成圖座標（最穩健）
-        inv = self.fig.transFigure.inverted()
-        fx, fy = inv.transform((event.x - ox, event.y - oy))
-        leg.set_bbox_to_anchor((fx, fy), transform=self.fig.transFigure)
+        # 滑鼠位移增量（像素）→ 加到圖例 anchor（圖座標）
+        last_x, last_y = self._drag_last
+        dx = event.x - last_x
+        dy = event.y - last_y
+        self._drag_last = (event.x, event.y)
+        ax, ay = self._drag_anchor
+        # anchor 是圖座標（figure fraction），把像素位移轉成圖座標增量
+        fig_w = self.fig.bbox.width
+        fig_h = self.fig.bbox.height
+        if fig_w > 0 and fig_h > 0:
+            new_anchor = (ax + dx / fig_w, ay + dy / fig_h)
+            leg.set_bbox_to_anchor(new_anchor, transform=self.fig.transFigure)
+            self._drag_anchor = new_anchor
         self.canvas.draw_idle()
 
     def _on_legend_release(self, event):
@@ -771,8 +777,8 @@ class PolarizationPlotterApp:
             self.ax2.tick_params(labelsize=self.tick_size)
             # 將 Y2 標題推到右軸外側——位置隨刻度字體大小動態調整
             # （字體越大，標題越靠右，維持與刻度的近距離）
-            # 基準：tick_size 9 → 1.18；每 +1pt → +0.012
-            offset = 1.18 + max(0, self.tick_size - 9) * 0.012
+            # 基準：tick_size 9 → 1.12；每 +1pt → +0.012
+            offset = 1.12 + max(0, self.tick_size - 9) * 0.012
             self.ax2.yaxis.set_label_coords(offset, 0.5)
             # Y2 軸範圍
             try:
@@ -815,7 +821,7 @@ class PolarizationPlotterApp:
         if power_plotted:
             # 有功率曲線時，右側留空間給 Y2 標題（tight_layout 不會處理 twinx 標題）
             # 右側空間也隨刻度字體調整
-            right = 0.84 - max(0, self.tick_size - 9) * 0.005
+            right = 0.86 - max(0, self.tick_size - 9) * 0.005
             self.fig.subplots_adjust(right=right)
         self.canvas.draw_idle()
 
