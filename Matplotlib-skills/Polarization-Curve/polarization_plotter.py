@@ -529,21 +529,38 @@ class PolarizationPlotterApp:
         xlabel = f'Current Density ({unit_txt})' if not invert else 'Voltage (V)'
         ylabel = 'Voltage (V)' if not invert else f'Current Density ({unit_txt})'
 
+        # 顯示換算因子（內部一律 A/cm²，顯示時換算）
+        if unit_txt == 'mA/cm²':
+            disp_scale = 1000.0
+        elif unit_txt == 'A':
+            disp_scale = None   # 每條曲線依各自 active_area 換回
+        else:
+            disp_scale = 1.0
+
         # 收集功率數據（有顯示功率的曲線）
         power_plotted = False
 
         for c in self.curves:
             c.invert_xy = invert
             x, y = c.get_xy()
+            # 顯示單位換算（只影響繪圖數值，內部計算不變）
+            if disp_scale is None:
+                x_disp = x * c.active_area   # 顯示 A（原始安培）
+            else:
+                x_disp = x * disp_scale
             marker = c.marker_style if c.marker_on and c.marker_style != 'None' else None
-            self.ax.plot(x, y, label=c.name, color=c.color,
+            self.ax.plot(x_disp, y, label=c.name, color=c.color,
                          linestyle=c.line_style, linewidth=c.line_width,
                          marker=marker, markersize=3, markevery=5)
 
-            # 功率曲線（右 Y 軸）
+            # 功率曲線（右 Y 軸）——功率顯示也隨單位
             if c.show_power and self.power_var.get() and not invert:
                 p = c.get_power()
-                self.ax2.plot(c.get_i_density(), p, color=c.color,
+                if disp_scale is not None:
+                    p_disp = p * disp_scale   # mA/cm² 時功率 mW/cm²
+                else:
+                    p_disp = p * c.active_area  # A 時功率 W
+                self.ax2.plot(x_disp, p_disp, color=c.color,
                               linestyle='--', linewidth=1.2, alpha=0.7,
                               label=f"{c.name} (P)")
                 power_plotted = True
@@ -610,8 +627,14 @@ class PolarizationPlotterApp:
         if power_plotted:
             # 恢復右軸顯示（含刻度與標題）
             self.ax2.spines['right'].set_visible(True)
-            unit = 'W/cm²' if any(c.power_unit == 'W/cm2' for c in self.curves if c.show_power) else 'mW/cm²'
-            self.ax2.set_ylabel(f'Power Density ({unit})', fontsize=self.font_size, fontweight='bold')
+            # 功率單位隨顯示單位
+            if unit_txt == 'mA/cm²':
+                p_unit_txt = 'mW/cm²'
+            elif unit_txt == 'A':
+                p_unit_txt = 'W'
+            else:
+                p_unit_txt = 'W/cm²'
+            self.ax2.set_ylabel(f'Power Density ({p_unit_txt})', fontsize=self.font_size, fontweight='bold')
             self.ax2.tick_params(labelsize=self.font_size - 1)
             # Y2 軸範圍
             try:
