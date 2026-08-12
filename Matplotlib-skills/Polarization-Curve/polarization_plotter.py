@@ -176,40 +176,58 @@ class PolarizationPlotterApp:
         tk.Checkbutton(pw_frame, text="功率 marker", variable=self.power_marker_global,
                        command=self.redraw).pack(side=tk.LEFT, padx=(8, 0))
 
+        # 曲線外觀（全域統一）
+        tk.Label(gf, text="曲線外觀:").grid(row=2, column=0, sticky="w")
+        cf2 = tk.Frame(gf)
+        cf2.grid(row=2, column=1, sticky="ew")
+        self.marker_global = tk.BooleanVar(value=True)
+        tk.Checkbutton(cf2, text="marker", variable=self.marker_global,
+                       command=self.redraw).pack(side=tk.LEFT)
+        tk.Label(cf2, text="大小").pack(side=tk.LEFT, padx=(6, 0))
+        self.marker_size_global = tk.DoubleVar(value=3.0)
+        tk.Spinbox(cf2, from_=1, to=20, increment=0.5,
+                   textvariable=self.marker_size_global, width=4,
+                   command=self.redraw).pack(side=tk.LEFT)
+        tk.Label(cf2, text="線粗").pack(side=tk.LEFT, padx=(6, 0))
+        self.line_width_global = tk.DoubleVar(value=1.0)
+        tk.Spinbox(cf2, from_=0.5, to=5, increment=0.1,
+                   textvariable=self.line_width_global, width=4,
+                   command=self.redraw).pack(side=tk.LEFT)
+
         # 單位顯示
-        tk.Label(gf, text="單位顯示:").grid(row=2, column=0, sticky="w")
+        tk.Label(gf, text="單位顯示:").grid(row=3, column=0, sticky="w")
         self.unit_display_var = tk.StringVar(value="A/cm²")
         tk.OptionMenu(gf, self.unit_display_var, 'A/cm²', 'mA/cm²', 'A',
-                      command=lambda _: self.redraw()).grid(row=2, column=1, sticky="ew")
+                      command=lambda _: self.redraw()).grid(row=3, column=1, sticky="ew")
 
         # 字型
-        tk.Label(gf, text="字型:").grid(row=3, column=0, sticky="w")
+        tk.Label(gf, text="字型:").grid(row=4, column=0, sticky="w")
         self.font_var = tk.StringVar(value=self.font_name)
         fonts = ['DejaVu Sans', 'Arial', 'Times New Roman', 'SimHei', 'Microsoft JhengHei']
-        tk.OptionMenu(gf, self.font_var, *fonts, command=lambda _: self._apply_global()).grid(row=3, column=1, sticky="ew")
+        tk.OptionMenu(gf, self.font_var, *fonts, command=lambda _: self._apply_global()).grid(row=4, column=1, sticky="ew")
 
         # 字體大小（軸標題 / 刻度分開）
-        tk.Label(gf, text="標題字體:").grid(row=4, column=0, sticky="w")
+        tk.Label(gf, text="標題字體:").grid(row=5, column=0, sticky="w")
         self.title_size_var = tk.IntVar(value=self.title_size)
         ts_spin = tk.Spinbox(gf, from_=6, to=30, textvariable=self.title_size_var, width=5,
                              command=self._apply_global)
-        ts_spin.grid(row=4, column=1, sticky="w")
+        ts_spin.grid(row=5, column=1, sticky="w")
         ts_spin.bind('<Return>', lambda e: self._apply_global())
         ts_spin.bind('<FocusOut>', lambda e: self._apply_global())
 
-        tk.Label(gf, text="刻度字體:").grid(row=5, column=0, sticky="w")
+        tk.Label(gf, text="刻度字體:").grid(row=6, column=0, sticky="w")
         self.tick_size_var = tk.IntVar(value=self.tick_size)
         tk_spin = tk.Spinbox(gf, from_=6, to=30, textvariable=self.tick_size_var, width=5,
                              command=self._apply_global)
-        tk_spin.grid(row=5, column=1, sticky="w")
+        tk_spin.grid(row=6, column=1, sticky="w")
         tk_spin.bind('<Return>', lambda e: self._apply_global())
         tk_spin.bind('<FocusOut>', lambda e: self._apply_global())
 
         # 功率密度單位
-        tk.Label(gf, text="功率單位:").grid(row=6, column=0, sticky="w")
+        tk.Label(gf, text="功率單位:").grid(row=7, column=0, sticky="w")
         self.power_unit_var = tk.StringVar(value="W/cm²")
         tk.OptionMenu(gf, self.power_unit_var, 'W/cm²', 'mW/cm²', 'W',
-                      command=lambda _: self.redraw()).grid(row=6, column=1, sticky="ew")
+                      command=lambda _: self.redraw()).grid(row=7, column=1, sticky="ew")
 
         # ===== 軸設定 =====
         tk.Label(left, text="軸設定（空=自動）", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(6, 2))
@@ -457,57 +475,27 @@ class PolarizationPlotterApp:
         tk.Checkbutton(nf, text="電壓 ×(−1)", variable=negv_var,
                        command=lambda: (setattr(c, 'negate_v', negv_var.get()), self.redraw())).pack(side=tk.LEFT, padx=(8, 0))
 
-        # 功率曲線（該曲線）——單位由主畫面「功率單位」控制
-        pf = tk.Frame(win); pf.pack(fill=tk.X, padx=8)
-        pw_var = tk.BooleanVar(value=c.show_power)
-        tk.Checkbutton(pf, text="顯示功率曲線", variable=pw_var,
-                       command=lambda: (setattr(c, 'show_power', pw_var.get()), self.redraw())).pack(side=tk.LEFT)
-        # 功率 marker
-        pmk_var = tk.BooleanVar(value=c.power_marker_on)
-        tk.Checkbutton(pf, text="功率 marker", variable=pmk_var,
-                       command=lambda: (setattr(c, 'power_marker_on', pmk_var.get()), self.redraw())).pack(side=tk.LEFT, padx=(8, 0))
-        pms_var = tk.StringVar(value=c.power_marker_style)
-        markers = ['o', 's', '^', 'v', 'D', 'x', '+', '*', '|', 'None']
-        tk.OptionMenu(pf, pms_var, *markers,
-                      command=lambda v: (setattr(c, 'power_marker_style', v), self.redraw())).pack(side=tk.LEFT, padx=4)
-        tk.Label(pf, text="大小:").pack(side=tk.LEFT, padx=(4, 0))
-        pmsize_var = tk.DoubleVar(value=c.power_marker_size)
-        tk.Spinbox(pf, from_=1, to=20, increment=0.5, textvariable=pmsize_var, width=4).pack(side=tk.LEFT)
-        def set_pmsize():
-            c.power_marker_size = pmsize_var.get()
-            self.redraw()
-        tk.Button(pf, text="套用", command=set_pmsize).pack(side=tk.LEFT, padx=4)
-
-        # 線型/線寬
+        # 線型（種類——區分數據用，保留在屬性）
         lf = tk.Frame(win); lf.pack(fill=tk.X, padx=8)
         tk.Label(lf, text="線型:").pack(side=tk.LEFT)
         ls_var = tk.StringVar(value=c.line_style)
         tk.OptionMenu(lf, ls_var, '-', '--', '-.', ':',
                       command=lambda v: (setattr(c, 'line_style', v), self.redraw())).pack(side=tk.LEFT)
-        tk.Label(lf, text="寬:").pack(side=tk.LEFT, padx=(8, 0))
-        lw_var = tk.DoubleVar(value=c.line_width)
-        tk.Spinbox(lf, from_=0.5, to=5, increment=0.1, textvariable=lw_var, width=4).pack(side=tk.LEFT)
-        def set_lw():
-            c.line_width = lw_var.get()
-            self.redraw()
-        tk.Button(lf, text="套用", command=set_lw).pack(side=tk.LEFT, padx=4)
 
-        # marker
+        # marker 種類（區分數據用，保留在屬性）
         mf = tk.Frame(win); mf.pack(fill=tk.X, padx=8)
-        mk_var = tk.BooleanVar(value=c.marker_on)
-        tk.Checkbutton(mf, text="顯示 marker", variable=mk_var,
-                       command=lambda: (setattr(c, 'marker_on', mk_var.get()), self.redraw())).pack(side=tk.LEFT)
+        tk.Label(mf, text="marker 種類:").pack(side=tk.LEFT)
         ms_var = tk.StringVar(value=c.marker_style)
         markers = ['o', 's', '^', 'v', 'D', 'x', '+', '*', '|', 'None']
         tk.OptionMenu(mf, ms_var, *markers,
                       command=lambda v: (setattr(c, 'marker_style', v), self.redraw())).pack(side=tk.LEFT, padx=4)
-        tk.Label(mf, text="大小:").pack(side=tk.LEFT, padx=(8, 0))
-        msize_var = tk.DoubleVar(value=c.marker_size)
-        tk.Spinbox(mf, from_=1, to=20, increment=0.5, textvariable=msize_var, width=4).pack(side=tk.LEFT)
-        def set_msize():
-            c.marker_size = msize_var.get()
-            self.redraw()
-        tk.Button(mf, text="套用", command=set_msize).pack(side=tk.LEFT, padx=4)
+
+        # 功率 marker 種類（區分數據用，保留在屬性）
+        pmf = tk.Frame(win); pmf.pack(fill=tk.X, padx=8)
+        tk.Label(pmf, text="功率 marker:").pack(side=tk.LEFT)
+        pms_var = tk.StringVar(value=c.power_marker_style)
+        tk.OptionMenu(pmf, pms_var, *markers,
+                      command=lambda v: (setattr(c, 'power_marker_style', v), self.redraw())).pack(side=tk.LEFT, padx=4)
 
     def _pick_color_btn(self, btn, curve):
         rgb, _ = colorchooser.askcolor(color=curve.color, title="選擇顏色")
@@ -684,13 +672,15 @@ class PolarizationPlotterApp:
                 x_disp = x * c.active_area   # 顯示 A（原始安培）
             else:
                 x_disp = x * disp_scale
-            marker = c.marker_style if c.marker_on and c.marker_style != 'None' else None
+            # marker：全域開關 + 該曲線種類（屬性）；大小/線粗用全域值
+            marker = c.marker_style if (self.marker_global.get()
+                                        and c.marker_style != 'None') else None
             self.ax.plot(x_disp, y, label=c.name, color=c.color,
-                         linestyle=c.line_style, linewidth=c.line_width,
-                         marker=marker, markersize=c.marker_size)
+                         linestyle=c.line_style, linewidth=self.line_width_global.get(),
+                         marker=marker, markersize=self.marker_size_global.get())
 
-            # 功率曲線（右 Y 軸）——功率顯示隨功率單位設定
-            if c.show_power and self.power_var.get() and not invert:
+            # 功率曲線（右 Y 軸）——全域顯示開關 + 功率單位設定
+            if self.power_var.get() and not invert:
                 p = c.get_power()   # W/cm²（內部）
                 pu = self.power_unit_var.get()
                 if pu == 'mW/cm²':
@@ -699,13 +689,12 @@ class PolarizationPlotterApp:
                     p_disp = p * c.active_area
                 else:
                     p_disp = p
-                # 功率 marker：全域開關 AND 該曲線開關
+                # 功率 marker：全域開關 + 該曲線種類（屬性）
                 pmk = c.power_marker_style if (self.power_marker_global.get()
-                                               and c.power_marker_on
                                                and c.power_marker_style != 'None') else None
                 self.ax2.plot(x_disp, p_disp, color=c.color,
                               linestyle='--', linewidth=1.2, alpha=0.7,
-                              marker=pmk, markersize=c.power_marker_size,
+                              marker=pmk, markersize=self.marker_size_global.get(),
                               label=f"{c.name} (P)")
                 power_plotted = True
 
