@@ -176,27 +176,37 @@ class PolarizationPlotterApp:
         tk.Spinbox(gf, from_=6, to=30, textvariable=self.size_var, width=5,
                    command=self._apply_global).grid(row=3, column=1, sticky="w")
 
-        # 軸範圍
-        tk.Label(gf, text="軸範圍:").grid(row=4, column=0, sticky="w")
-        xf = tk.Frame(gf)
-        xf.grid(row=4, column=1, sticky="ew")
-        self.xmin_var = tk.StringVar(value="")   # 空 = 自動（0 ~ max）
-        self.xmax_var = tk.StringVar(value="")
-        tk.Label(xf, text="X:").pack(side=tk.LEFT)
-        tk.Entry(xf, textvariable=self.xmin_var, width=5).pack(side=tk.LEFT)
-        tk.Label(xf, text="–").pack(side=tk.LEFT)
-        tk.Entry(xf, textvariable=self.xmax_var, width=5).pack(side=tk.LEFT)
-        tk.Button(xf, text="套用", command=self.redraw).pack(side=tk.LEFT, padx=2)
+        # ===== 軸設定 =====
+        tk.Label(left, text="軸設定（空=自動）", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(6, 2))
+        axf = tk.Frame(left)
+        axf.pack(fill=tk.X)
 
-        yf = tk.Frame(gf)
-        yf.grid(row=5, column=1, sticky="ew")
-        self.ymin_var = tk.StringVar(value="")   # 空 = 自動
+        def make_axis_row(parent, row, label, min_var, max_var, n_var, n_label="刻度數"):
+            tk.Label(parent, text=label).grid(row=row, column=0, sticky="w", padx=(0, 2))
+            f = tk.Frame(parent)
+            f.grid(row=row, column=1, sticky="ew")
+            tk.Entry(f, textvariable=min_var, width=5).pack(side=tk.LEFT)
+            tk.Label(f, text="–").pack(side=tk.LEFT)
+            tk.Entry(f, textvariable=max_var, width=5).pack(side=tk.LEFT)
+            tk.Label(f, text=n_label).pack(side=tk.LEFT, padx=(4, 0))
+            tk.Entry(f, textvariable=n_var, width=3).pack(side=tk.LEFT)
+            parent.columnconfigure(1, weight=1)
+
+        self.xmin_var = tk.StringVar(value="")
+        self.xmax_var = tk.StringVar(value="")
+        self.xn_var = tk.StringVar(value="")
+        self.ymin_var = tk.StringVar(value="")
         self.ymax_var = tk.StringVar(value="")
-        tk.Label(yf, text="Y:").pack(side=tk.LEFT)
-        tk.Entry(yf, textvariable=self.ymin_var, width=5).pack(side=tk.LEFT)
-        tk.Label(yf, text="–").pack(side=tk.LEFT)
-        tk.Entry(yf, textvariable=self.ymax_var, width=5).pack(side=tk.LEFT)
-        tk.Button(yf, text="套用", command=self.redraw).pack(side=tk.LEFT, padx=2)
+        self.yn_var = tk.StringVar(value="")
+        self.y2min_var = tk.StringVar(value="")
+        self.y2max_var = tk.StringVar(value="")
+        self.y2n_var = tk.StringVar(value="")
+
+        make_axis_row(axf, 0, "X:", self.xmin_var, self.xmax_var, self.xn_var)
+        make_axis_row(axf, 1, "Y:", self.ymin_var, self.ymax_var, self.yn_var)
+        make_axis_row(axf, 2, "Y₂:", self.y2min_var, self.y2max_var, self.y2n_var)
+
+        tk.Button(left, text="套用軸設定", command=self.redraw).pack(fill=tk.X, pady=(2, 0))
 
         gf.columnconfigure(1, weight=1)
 
@@ -549,7 +559,7 @@ class PolarizationPlotterApp:
         if self.curves:
             self.ax.relim()
             self.ax.autoscale()
-            # 使用者輸入 X/Y 範圍 → 覆寫
+            # X 軸範圍
             try:
                 if self.xmin_var.get() or self.xmax_var.get():
                     xmin = float(self.xmin_var.get()) if self.xmin_var.get() else None
@@ -557,11 +567,31 @@ class PolarizationPlotterApp:
                     self.ax.set_xlim(xmin, xmax_u)
             except ValueError:
                 pass
+            # Y1 軸範圍
             try:
                 if self.ymin_var.get() or self.ymax_var.get():
                     ymin = float(self.ymin_var.get()) if self.ymin_var.get() else None
                     ymax_u = float(self.ymax_var.get()) if self.ymax_var.get() else None
                     self.ax.set_ylim(ymin, ymax_u)
+            except ValueError:
+                pass
+
+            # X 軸刻度數量
+            try:
+                if self.xn_var.get():
+                    n = int(self.xn_var.get())
+                    if n > 1:
+                        lo, hi = self.ax.get_xlim()
+                        self.ax.set_xticks(np.linspace(lo, hi, n))
+            except ValueError:
+                pass
+            # Y1 軸刻度數量
+            try:
+                if self.yn_var.get():
+                    n = int(self.yn_var.get())
+                    if n > 1:
+                        lo, hi = self.ax.get_ylim()
+                        self.ax.set_yticks(np.linspace(lo, hi, n))
             except ValueError:
                 pass
 
@@ -571,6 +601,23 @@ class PolarizationPlotterApp:
             unit = 'W/cm²' if any(c.power_unit == 'W/cm2' for c in self.curves if c.show_power) else 'mW/cm²'
             self.ax2.set_ylabel(f'Power Density ({unit})', fontsize=self.font_size, fontweight='bold')
             self.ax2.tick_params(labelsize=self.font_size - 1)
+            # Y2 軸範圍
+            try:
+                if self.y2min_var.get() or self.y2max_var.get():
+                    y2min = float(self.y2min_var.get()) if self.y2min_var.get() else None
+                    y2max = float(self.y2max_var.get()) if self.y2max_var.get() else None
+                    self.ax2.set_ylim(y2min, y2max)
+            except ValueError:
+                pass
+            # Y2 軸刻度數量
+            try:
+                if self.y2n_var.get():
+                    n = int(self.y2n_var.get())
+                    if n > 1:
+                        lo, hi = self.ax2.get_ylim()
+                        self.ax2.set_yticks(np.linspace(lo, hi, n))
+            except ValueError:
+                pass
         else:
             # 無功率曲線時隱藏右軸
             self.ax2.spines['right'].set_visible(False)
