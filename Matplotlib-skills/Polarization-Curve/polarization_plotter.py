@@ -44,7 +44,7 @@ class PolarizationData:
     def __init__(self, name, df, v_col, i_col,
                  color, current_unit='A/cm2', active_area=1.0,
                  negate=False, negate_v=False, marker_on=True, marker_style='o',
-                 line_style='-', line_width=1.0, show_power=True,
+                 marker_size=3, line_style='-', line_width=1.0, show_power=True,
                  power_unit='W/cm2', invert_xy=False):
         self.name = name
         self.df = df.copy()
@@ -53,10 +53,11 @@ class PolarizationData:
         self.color = color
         self.current_unit = current_unit      # 'A', 'A/cm2', 'mA/cm2'
         self.active_area = active_area        # cm²
-        self.negate = negate                  # 電流取絕對值
-        self.negate_v = negate_v              # 電壓取絕對值
+        self.negate = negate                  # 電流 ×(−1)
+        self.negate_v = negate_v              # 電壓 ×(−1)
         self.marker_on = marker_on
         self.marker_style = marker_style
+        self.marker_size = marker_size
         self.line_style = line_style
         self.line_width = line_width
         self.show_power = show_power          # 是否顯示功率曲線
@@ -471,6 +472,13 @@ class PolarizationPlotterApp:
         markers = ['o', 's', '^', 'v', 'D', 'x', '+', '*', '|', 'None']
         tk.OptionMenu(mf, ms_var, *markers,
                       command=lambda v: (setattr(c, 'marker_style', v), self.redraw())).pack(side=tk.LEFT, padx=4)
+        tk.Label(mf, text="大小:").pack(side=tk.LEFT, padx=(8, 0))
+        msize_var = tk.DoubleVar(value=c.marker_size)
+        tk.Spinbox(mf, from_=1, to=20, increment=0.5, textvariable=msize_var, width=4).pack(side=tk.LEFT)
+        def set_msize():
+            c.marker_size = msize_var.get()
+            self.redraw()
+        tk.Button(mf, text="套用", command=set_msize).pack(side=tk.LEFT, padx=4)
 
     def _pick_color_btn(self, btn, curve):
         rgb, _ = colorchooser.askcolor(color=curve.color, title="選擇顏色")
@@ -581,7 +589,7 @@ class PolarizationPlotterApp:
             marker = c.marker_style if c.marker_on and c.marker_style != 'None' else None
             self.ax.plot(x_disp, y, label=c.name, color=c.color,
                          linestyle=c.line_style, linewidth=c.line_width,
-                         marker=marker, markersize=3)
+                         marker=marker, markersize=c.marker_size)
 
             # 功率曲線（右 Y 軸）——功率顯示隨功率單位設定
             if c.show_power and self.power_var.get() and not invert:
