@@ -207,7 +207,7 @@ class PolarizationPlotterApp:
         axf = tk.Frame(left)
         axf.pack(fill=tk.X)
 
-        def make_axis_row(parent, row, label, min_var, max_var, n_var, minor_var):
+        def make_axis_row(parent, row, label, min_var, max_var, n_var, minor_var, minor_n_var):
             tk.Label(parent, text=label).grid(row=row, column=0, sticky="w", padx=(0, 2))
             f = tk.Frame(parent)
             f.grid(row=row, column=1, sticky="ew")
@@ -218,24 +218,29 @@ class PolarizationPlotterApp:
             tk.Entry(f, textvariable=n_var, width=3).pack(side=tk.LEFT)
             tk.Checkbutton(f, text="子", variable=minor_var,
                            command=self.redraw).pack(side=tk.LEFT, padx=(4, 0))
+            tk.Label(f, text="子數").pack(side=tk.LEFT)
+            tk.Entry(f, textvariable=minor_n_var, width=3).pack(side=tk.LEFT)
             parent.columnconfigure(1, weight=1)
 
         self.xmin_var = tk.StringVar(value="")
         self.xmax_var = tk.StringVar(value="")
         self.xn_var = tk.StringVar(value="")
         self.xminor_var = tk.BooleanVar(value=False)
+        self.xminor_n_var = tk.StringVar(value="")
         self.ymin_var = tk.StringVar(value="")
         self.ymax_var = tk.StringVar(value="")
         self.yn_var = tk.StringVar(value="")
         self.yminor_var = tk.BooleanVar(value=False)
+        self.yminor_n_var = tk.StringVar(value="")
         self.y2min_var = tk.StringVar(value="")
         self.y2max_var = tk.StringVar(value="")
         self.y2n_var = tk.StringVar(value="")
         self.y2minor_var = tk.BooleanVar(value=False)
+        self.y2minor_n_var = tk.StringVar(value="")
 
-        make_axis_row(axf, 0, "X:", self.xmin_var, self.xmax_var, self.xn_var, self.xminor_var)
-        make_axis_row(axf, 1, "Y:", self.ymin_var, self.ymax_var, self.yn_var, self.yminor_var)
-        make_axis_row(axf, 2, "Y₂:", self.y2min_var, self.y2max_var, self.y2n_var, self.y2minor_var)
+        make_axis_row(axf, 0, "X:", self.xmin_var, self.xmax_var, self.xn_var, self.xminor_var, self.xminor_n_var)
+        make_axis_row(axf, 1, "Y:", self.ymin_var, self.ymax_var, self.yn_var, self.yminor_var, self.yminor_n_var)
+        make_axis_row(axf, 2, "Y₂:", self.y2min_var, self.y2max_var, self.y2n_var, self.y2minor_var, self.y2minor_n_var)
 
         tk.Button(left, text="套用軸設定", command=self.redraw).pack(fill=tk.X, pady=(2, 0))
 
@@ -555,6 +560,57 @@ class PolarizationPlotterApp:
         self.legend_dragging = False
 
     # ------------------------------------------------------------------
+    # 子刻度
+    # ------------------------------------------------------------------
+    def _apply_minor(self, axis='x'):
+        """套用子刻度：勾選時每個主刻度間隔內 n 個子刻度（MultipleLocator）"""
+        from matplotlib.ticker import MultipleLocator
+
+        if axis == 'x':
+            ax = self.ax
+            enabled = self.xminor_var.get()
+            n_str = self.xminor_n_var.get()
+            get_lim = ax.get_xlim
+            set_loc = ax.xaxis.set_minor_locator
+            major_ticks = ax.get_xticks()
+        elif axis == 'y':
+            ax = self.ax
+            enabled = self.yminor_var.get()
+            n_str = self.yminor_n_var.get()
+            get_lim = ax.get_ylim
+            set_loc = ax.yaxis.set_minor_locator
+            major_ticks = ax.get_yticks()
+        else:  # y2
+            ax = self.ax2
+            enabled = self.y2minor_var.get()
+            n_str = self.y2minor_n_var.get()
+            get_lim = ax.get_ylim
+            set_loc = ax.yaxis.set_minor_locator
+            major_ticks = ax.get_yticks()
+
+        if not enabled:
+            ax.minorticks_off()
+            return
+
+        try:
+            n = int(n_str) if n_str else 4   # 預設每主刻度間 4 個子刻度
+            n = max(1, min(n, 20))
+        except ValueError:
+            n = 4
+
+        # 主刻度間距 → 子刻度間距 = 主間距/(n+1)
+        if len(major_ticks) >= 2:
+            major_step = abs(major_ticks[1] - major_ticks[0])
+            if major_step > 0:
+                set_loc(MultipleLocator(major_step / (n + 1)))
+                return
+        # 無主刻度資訊時退避：用軸範圍自動
+        lo, hi = get_lim()
+        if hi > lo:
+            auto_step = (hi - lo) / 50.0
+            set_loc(MultipleLocator(auto_step))
+
+    # ------------------------------------------------------------------
     # 繪圖
     # ------------------------------------------------------------------
     def redraw(self):
@@ -651,8 +707,8 @@ class PolarizationPlotterApp:
                         self.ax.set_xticks(np.linspace(lo, hi, n))
             except ValueError:
                 pass
-            # X 軸子刻度
-            self.ax.minorticks_on() if self.xminor_var.get() else self.ax.minorticks_off()
+            # X 軸子刻度（每主刻度間 n 個子刻度）
+            self._apply_minor(axis='x')
             # Y1 軸刻度數量
             try:
                 if self.yn_var.get():
@@ -663,7 +719,7 @@ class PolarizationPlotterApp:
             except ValueError:
                 pass
             # Y1 軸子刻度
-            self.ax.minorticks_on() if self.yminor_var.get() else self.ax.minorticks_off()
+            self._apply_minor(axis='y')
 
         if power_plotted:
             # 恢復右軸顯示（含刻度與標題）
@@ -672,8 +728,9 @@ class PolarizationPlotterApp:
             p_unit_txt = self.power_unit_var.get()
             self.ax2.set_ylabel(f'Power Density ({p_unit_txt})', fontsize=self.title_size, fontweight='bold')
             self.ax2.tick_params(labelsize=self.tick_size)
-            # 將 Y2 標題推到右軸外側（避免與 Y1 標題重疊）
-            self.ax2.yaxis.set_label_coords(1.06, 0.5)
+            # 將 Y2 標題推到右軸外側（避免與 Y1 標題/軸數值重疊）
+            # 1.06 太近（疊到刻度值），改為 1.20
+            self.ax2.yaxis.set_label_coords(1.20, 0.5)
             # Y2 軸範圍
             try:
                 if self.y2min_var.get() or self.y2max_var.get():
@@ -692,7 +749,7 @@ class PolarizationPlotterApp:
             except ValueError:
                 pass
             # Y2 軸子刻度
-            self.ax2.minorticks_on() if self.y2minor_var.get() else self.ax2.minorticks_off()
+            self._apply_minor(axis='y2')
         else:
             # 無功率曲線時隱藏右軸
             self.ax2.spines['right'].set_visible(False)
@@ -714,7 +771,7 @@ class PolarizationPlotterApp:
         self.fig.tight_layout()
         if power_plotted:
             # 有功率曲線時，右側留空間給 Y2 標題（tight_layout 不會處理 twinx 標題）
-            self.fig.subplots_adjust(right=0.85)
+            self.fig.subplots_adjust(right=0.82)
         self.canvas.draw_idle()
 
     # ------------------------------------------------------------------
