@@ -568,6 +568,7 @@ class PolarizationPlotterApp:
 
         # 收集功率數據（有顯示功率的曲線）
         power_plotted = False
+        p_unit_txt = self.power_unit_var.get()   # 預設（防未定義引用）
 
         for c in self.curves:
             c.invert_xy = invert
@@ -611,9 +612,6 @@ class PolarizationPlotterApp:
         self.ax.set_xlabel(xlabel, fontsize=self.title_size, fontweight='bold', fontname=self.font_name)
         self.ax.set_ylabel(ylabel, fontsize=self.title_size, fontweight='bold', fontname=self.font_name)
         self.ax.tick_params(labelsize=self.tick_size)
-        if power_plotted:
-            self.ax2.set_ylabel(f'Power Density ({p_unit_txt})', fontsize=self.title_size, fontweight='bold')
-            self.ax2.tick_params(labelsize=self.tick_size)
 
         # 軸範圍：預設 auto scale；使用者輸入自訂值時才固定
         if self.curves:
