@@ -572,12 +572,21 @@ class PolarizationPlotterApp:
         if leg is None: return
         if leg.get_window_extent().contains(event.x, event.y):
             self.legend_dragging = True
+            # 記錄按下位置與圖例位置的偏移（像素）
+            leg_win = leg.get_window_extent()
+            self._drag_offset = (event.x - leg_win.x0, event.y - leg_win.y0)
 
     def _on_legend_drag(self, event):
         if not self.legend_dragging or event.inaxes is None: return
         leg = self.ax.get_legend()
         if leg is None: return
-        leg.set_bbox_to_anchor((event.xdata, event.ydata), transform=self.ax.transData)
+        # 用像素座標（含拖曳偏移）→ 圖座標（figure fraction）
+        # 這樣滑鼠點到圖例哪裡，圖例就跟到哪裡（無位置差）
+        ox, oy = getattr(self, '_drag_offset', (0, 0))
+        # 用 transFigure.inverted() 把畫布像素轉成圖座標（最穩健）
+        inv = self.fig.transFigure.inverted()
+        fx, fy = inv.transform((event.x - ox, event.y - oy))
+        leg.set_bbox_to_anchor((fx, fy), transform=self.fig.transFigure)
         self.canvas.draw_idle()
 
     def _on_legend_release(self, event):
