@@ -116,6 +116,8 @@ class PolarizationPlotterApp:
         self.show_power_global = True   # 全域功率曲線開關
         self.font_name = 'DejaVu Sans'
         self.font_size = 10
+        self.title_size = 10
+        self.tick_size = 9
         self.legend_dragging = False
 
         self._build_ui()
@@ -176,11 +178,22 @@ class PolarizationPlotterApp:
         fonts = ['DejaVu Sans', 'Arial', 'Times New Roman', 'SimHei', 'Microsoft JhengHei']
         tk.OptionMenu(gf, self.font_var, *fonts, command=lambda _: self._apply_global()).grid(row=3, column=1, sticky="ew")
 
-        # 字體大小
-        tk.Label(gf, text="字體大小:").grid(row=4, column=0, sticky="w")
-        self.size_var = tk.IntVar(value=self.font_size)
-        tk.Spinbox(gf, from_=6, to=30, textvariable=self.size_var, width=5,
+        # 字體大小（軸標題 / 刻度分開）
+        tk.Label(gf, text="標題字體:").grid(row=4, column=0, sticky="w")
+        self.title_size_var = tk.IntVar(value=self.font_size)
+        tk.Spinbox(gf, from_=6, to=30, textvariable=self.title_size_var, width=5,
                    command=self._apply_global).grid(row=4, column=1, sticky="w")
+
+        tk.Label(gf, text="刻度字體:").grid(row=5, column=0, sticky="w")
+        self.tick_size_var = tk.IntVar(value=self.font_size - 1)
+        tk.Spinbox(gf, from_=6, to=30, textvariable=self.tick_size_var, width=5,
+                   command=self._apply_global).grid(row=5, column=1, sticky="w")
+
+        # 功率密度單位
+        tk.Label(gf, text="功率單位:").grid(row=6, column=0, sticky="w")
+        self.power_unit_var = tk.StringVar(value="W/cm²")
+        tk.OptionMenu(gf, self.power_unit_var, 'W/cm²', 'mW/cm²', 'W',
+                      command=lambda _: self.redraw()).grid(row=6, column=1, sticky="ew")
 
         # ===== 軸設定 =====
         tk.Label(left, text="軸設定（空=自動）", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(6, 2))
@@ -418,16 +431,11 @@ class PolarizationPlotterApp:
         tk.Checkbutton(nf, text="電壓 ×(−1)", variable=negv_var,
                        command=lambda: (setattr(c, 'negate_v', negv_var.get()), self.redraw())).pack(side=tk.LEFT, padx=(8, 0))
 
-        # 功率曲線（該曲線）
+        # 功率曲線（該曲線）——單位由主畫面「功率單位」控制
         pf = tk.Frame(win); pf.pack(fill=tk.X, padx=8)
         pw_var = tk.BooleanVar(value=c.show_power)
         tk.Checkbutton(pf, text="顯示功率曲線", variable=pw_var,
                        command=lambda: (setattr(c, 'show_power', pw_var.get()), self.redraw())).pack(side=tk.LEFT)
-        pu_var = tk.StringVar(value=c.power_unit)
-        def set_pu(v):
-            c.power_unit = v
-            self.redraw()
-        tk.OptionMenu(pf, pu_var, 'W/cm2', 'mW/cm2', command=set_pu).pack(side=tk.LEFT, padx=4)
 
         # 線型/線寬
         lf = tk.Frame(win); lf.pack(fill=tk.X, padx=8)
@@ -465,7 +473,8 @@ class PolarizationPlotterApp:
     # ------------------------------------------------------------------
     def _apply_global(self):
         self.font_name = self.font_var.get()
-        self.font_size = self.size_var.get()
+        self.title_size = self.title_size_var.get()
+        self.tick_size = self.tick_size_var.get()
         self.redraw()
 
     # ------------------------------------------------------------------
@@ -553,13 +562,16 @@ class PolarizationPlotterApp:
                          linestyle=c.line_style, linewidth=c.line_width,
                          marker=marker, markersize=3, markevery=5)
 
-            # 功率曲線（右 Y 軸）——功率顯示也隨單位
+            # 功率曲線（右 Y 軸）——功率顯示隨功率單位設定
             if c.show_power and self.power_var.get() and not invert:
-                p = c.get_power()
-                if disp_scale is not None:
-                    p_disp = p * disp_scale   # mA/cm² 時功率 mW/cm²
+                p = c.get_power()   # W/cm²（內部）
+                pu = self.power_unit_var.get()
+                if pu == 'mW/cm²':
+                    p_disp = p * 1000.0
+                elif pu == 'W':
+                    p_disp = p * c.active_area
                 else:
-                    p_disp = p * c.active_area  # A 時功率 W
+                    p_disp = p
                 self.ax2.plot(x_disp, p_disp, color=c.color,
                               linestyle='--', linewidth=1.2, alpha=0.7,
                               label=f"{c.name} (P)")
@@ -570,15 +582,15 @@ class PolarizationPlotterApp:
             if a[0] == 'text':
                 _, x, y, text, color = a
                 self.ax.annotate(text, (x, y), color=color,
-                                 fontsize=self.font_size - 1, fontname=self.font_name)
+                                 fontsize=self.title_size - 1, fontname=self.font_name)
             elif a[0] == 'line':
                 _, x1, y1, x2, y2, color = a
                 self.ax.plot([x1, x2], [y1, y2], color=color, lw=1.5)
 
         # 版面
-        self.ax.set_xlabel(xlabel, fontsize=self.font_size, fontweight='bold', fontname=self.font_name)
-        self.ax.set_ylabel(ylabel, fontsize=self.font_size, fontweight='bold', fontname=self.font_name)
-        self.ax.tick_params(labelsize=self.font_size - 1)
+        self.ax.set_xlabel(xlabel, fontsize=self.title_size, fontweight='bold', fontname=self.font_name)
+        self.ax.set_ylabel(ylabel, fontsize=self.title_size, fontweight='bold', fontname=self.font_name)
+        self.ax.tick_params(labelsize=self.tick_size)
         for lbl in self.ax.get_xticklabels():
             lbl.set_fontname(self.font_name)
         for lbl in self.ax.get_yticklabels():
@@ -627,15 +639,10 @@ class PolarizationPlotterApp:
         if power_plotted:
             # 恢復右軸顯示（含刻度與標題）
             self.ax2.spines['right'].set_visible(True)
-            # 功率單位隨顯示單位
-            if unit_txt == 'mA/cm²':
-                p_unit_txt = 'mW/cm²'
-            elif unit_txt == 'A':
-                p_unit_txt = 'W'
-            else:
-                p_unit_txt = 'W/cm²'
-            self.ax2.set_ylabel(f'Power Density ({p_unit_txt})', fontsize=self.font_size, fontweight='bold')
-            self.ax2.tick_params(labelsize=self.font_size - 1)
+            # 功率單位：主畫面設定
+            p_unit_txt = self.power_unit_var.get()
+            self.ax2.set_ylabel(f'Power Density ({p_unit_txt})', fontsize=self.title_size, fontweight='bold')
+            self.ax2.tick_params(labelsize=self.tick_size)
             # Y2 軸範圍
             try:
                 if self.y2min_var.get() or self.y2max_var.get():
@@ -660,7 +667,7 @@ class PolarizationPlotterApp:
             self.ax2.set_ylabel('')
 
         if self.curves:
-            leg = self.ax.legend(loc='upper right', frameon=True, fontsize=self.font_size - 1)
+            leg = self.ax.legend(loc='upper right', frameon=True, fontsize=self.tick_size)
             leg.set_draggable(True)
 
         self.fig.tight_layout()
