@@ -45,7 +45,8 @@ class PolarizationData:
                  color, current_unit='A/cm2', active_area=1.0,
                  negate=False, negate_v=False, marker_on=True, marker_style='o',
                  marker_size=3, line_style='-', line_width=1.0, show_power=True,
-                 power_unit='W/cm2', invert_xy=False):
+                 power_unit='W/cm2', invert_xy=False,
+                 power_marker_on=False, power_marker_style='o', power_marker_size=3):
         self.name = name
         self.df = df.copy()
         self.v_col = v_col
@@ -63,6 +64,9 @@ class PolarizationData:
         self.show_power = show_power          # 是否顯示功率曲線
         self.power_unit = power_unit          # 'W/cm2', 'mW/cm2'
         self.invert_xy = invert_xy            # X/Y 軸角色
+        self.power_marker_on = power_marker_on       # 功率曲線 marker 開關
+        self.power_marker_style = power_marker_style # 功率 marker 種類
+        self.power_marker_size = power_marker_size   # 功率 marker 大小
 
     def get_v(self):
         """電壓陣列（可選 ×(−1)）"""
@@ -163,9 +167,14 @@ class PolarizationPlotterApp:
 
         # 功率曲線全域開關
         tk.Label(gf, text="功率密度顯示:").grid(row=1, column=0, sticky="w")
+        pw_frame = tk.Frame(gf)
+        pw_frame.grid(row=1, column=1, sticky="ew")
         self.power_var = tk.BooleanVar(value=True)
-        tk.Checkbutton(gf, text="(右 Y 軸)", variable=self.power_var,
-                       command=self.redraw).grid(row=1, column=1, sticky="w")
+        tk.Checkbutton(pw_frame, text="(右 Y 軸)", variable=self.power_var,
+                       command=self.redraw).pack(side=tk.LEFT)
+        self.power_marker_global = tk.BooleanVar(value=False)
+        tk.Checkbutton(pw_frame, text="功率 marker", variable=self.power_marker_global,
+                       command=self.redraw).pack(side=tk.LEFT, padx=(8, 0))
 
         # 單位顯示
         tk.Label(gf, text="單位顯示:").grid(row=2, column=0, sticky="w")
@@ -453,6 +462,21 @@ class PolarizationPlotterApp:
         pw_var = tk.BooleanVar(value=c.show_power)
         tk.Checkbutton(pf, text="顯示功率曲線", variable=pw_var,
                        command=lambda: (setattr(c, 'show_power', pw_var.get()), self.redraw())).pack(side=tk.LEFT)
+        # 功率 marker
+        pmk_var = tk.BooleanVar(value=c.power_marker_on)
+        tk.Checkbutton(pf, text="功率 marker", variable=pmk_var,
+                       command=lambda: (setattr(c, 'power_marker_on', pmk_var.get()), self.redraw())).pack(side=tk.LEFT, padx=(8, 0))
+        pms_var = tk.StringVar(value=c.power_marker_style)
+        markers = ['o', 's', '^', 'v', 'D', 'x', '+', '*', '|', 'None']
+        tk.OptionMenu(pf, pms_var, *markers,
+                      command=lambda v: (setattr(c, 'power_marker_style', v), self.redraw())).pack(side=tk.LEFT, padx=4)
+        tk.Label(pf, text="大小:").pack(side=tk.LEFT, padx=(4, 0))
+        pmsize_var = tk.DoubleVar(value=c.power_marker_size)
+        tk.Spinbox(pf, from_=1, to=20, increment=0.5, textvariable=pmsize_var, width=4).pack(side=tk.LEFT)
+        def set_pmsize():
+            c.power_marker_size = pmsize_var.get()
+            self.redraw()
+        tk.Button(pf, text="套用", command=set_pmsize).pack(side=tk.LEFT, padx=4)
 
         # 線型/線寬
         lf = tk.Frame(win); lf.pack(fill=tk.X, padx=8)
@@ -657,8 +681,13 @@ class PolarizationPlotterApp:
                     p_disp = p * c.active_area
                 else:
                     p_disp = p
+                # 功率 marker：全域開關 AND 該曲線開關
+                pmk = c.power_marker_style if (self.power_marker_global.get()
+                                               and c.power_marker_on
+                                               and c.power_marker_style != 'None') else None
                 self.ax2.plot(x_disp, p_disp, color=c.color,
                               linestyle='--', linewidth=1.2, alpha=0.7,
+                              marker=pmk, markersize=c.power_marker_size,
                               label=f"{c.name} (P)")
                 power_plotted = True
 
