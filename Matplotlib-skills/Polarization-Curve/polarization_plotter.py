@@ -757,9 +757,11 @@ class PolarizationPlotterApp:
             p_unit_txt = self.power_unit_var.get()
             self.ax2.set_ylabel(f'Power Density ({p_unit_txt})', fontsize=self.title_size, fontweight='bold')
             self.ax2.tick_params(labelsize=self.tick_size)
-            # 將 Y2 標題推到右軸外側（避免與 Y1 標題/軸數值重疊）
-            # 1.06 太近（疊到刻度值），改為 1.20
-            self.ax2.yaxis.set_label_coords(1.20, 0.5)
+            # 將 Y2 標題推到右軸外側——位置隨刻度字體大小動態調整
+            # （字體越大，標題越靠右，維持與刻度的近距離）
+            # 基準：tick_size 9 → 1.18；每 +1pt → +0.012
+            offset = 1.18 + max(0, self.tick_size - 9) * 0.012
+            self.ax2.yaxis.set_label_coords(offset, 0.5)
             # Y2 軸範圍
             try:
                 if self.y2min_var.get() or self.y2max_var.get():
@@ -800,7 +802,9 @@ class PolarizationPlotterApp:
         self.fig.tight_layout()
         if power_plotted:
             # 有功率曲線時，右側留空間給 Y2 標題（tight_layout 不會處理 twinx 標題）
-            self.fig.subplots_adjust(right=0.82)
+            # 右側空間也隨刻度字體調整
+            right = 0.84 - max(0, self.tick_size - 9) * 0.005
+            self.fig.subplots_adjust(right=right)
         self.canvas.draw_idle()
 
     # ------------------------------------------------------------------
