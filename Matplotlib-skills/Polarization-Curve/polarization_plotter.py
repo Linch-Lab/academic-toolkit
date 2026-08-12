@@ -560,15 +560,14 @@ class PolarizationPlotterApp:
         if leg is None: return
         if leg.get_window_extent().contains(event.x, event.y):
             self.legend_dragging = True
-            # 記錄按下時的滑鼠位置與圖例目前 anchor（圖座標）
+            # 記錄按下時的滑鼠位置
             self._drag_last = (event.x, event.y)
-            # 直接讀 legend 的 anchor 屬性（(x, y) 圖座標）
-            anchor = getattr(leg, '_bbox_to_anchor', None)
-            if anchor is not None and hasattr(anchor, '__len__') and len(anchor) == 2:
-                self._drag_anchor = tuple(anchor)
-            else:
-                # 退避：upper right 對應的圖座標約 (0.98, 0.98)
-                self._drag_anchor = (0.98, 0.98)
+            # 用圖例目前 window extent（像素）反推 anchor（圖座標）
+            # anchor = 圖例左下角在圖座標的位置
+            leg_win = leg.get_window_extent()
+            inv = self.fig.transFigure.inverted()
+            fx, fy = inv.transform((leg_win.x0, leg_win.y0))
+            self._drag_anchor = (fx, fy)
 
     def _on_legend_drag(self, event):
         if not self.legend_dragging or event.inaxes is None: return
