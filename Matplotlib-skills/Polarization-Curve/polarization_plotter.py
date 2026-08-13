@@ -128,6 +128,8 @@ class PolarizationPlotterApp:
         self.legend_dragging = False
         self.legend_selected = False    # 圖例選取狀態
         self._legend_sel_patches = []   # 選取框 patches
+        self._legend_pos_custom = False  # 圖例位置是否被使用者自訂過
+        self._drag_anchor = None
 
         self._build_ui()
         self._new_figure()
@@ -375,9 +377,9 @@ class PolarizationPlotterApp:
         return self.DEFAULT_COLORS[idx % len(self.DEFAULT_COLORS)]
 
     def _auto_style(self, idx):
-        """依序分配顏色 + marker 種類（組合不重複，直到 10×10 用完）"""
+        """依序分配顏色 + marker 種類——每條都不同組合（同步循環）"""
         color = self.DEFAULT_COLORS[idx % len(self.DEFAULT_COLORS)]
-        marker = self.AUTO_MARKERS[(idx // len(self.DEFAULT_COLORS)) % len(self.AUTO_MARKERS)]
+        marker = self.AUTO_MARKERS[idx % len(self.AUTO_MARKERS)]
         return color, marker
 
     def add_curve(self):
@@ -666,6 +668,7 @@ class PolarizationPlotterApp:
             return
         leg.set_bbox_to_anchor((ax, ay), transform=self.fig.transFigure)
         self._drag_anchor = (ax, ay)
+        self._legend_pos_custom = True
         self.canvas.draw_idle()
 
     def _draw_legend_selection(self, leg):
@@ -747,22 +750,20 @@ class PolarizationPlotterApp:
             new_anchor = (ax + dx / fig_w, ay + dy / fig_h)
             leg.set_bbox_to_anchor(new_anchor, transform=self.fig.transFigure)
             self._drag_anchor = new_anchor
+            self._legend_pos_custom = True
         self.canvas.draw_idle()
 
     def _on_legend_release(self, event):
         self.legend_dragging = False
-        # 放開滑鼠時保持選取（鍵盤微調仍可用）；點擊圖例外部取消選取
-        if self.legend_selected:
-            leg = self.ax.get_legend()
-            if leg is None or not leg.get_window_extent().contains(event.x, event.y):
-                self.legend_selected = False
-                for p in self._legend_sel_patches:
-                    try:
-                        p.remove()
-                    except Exception:
-                        pass
-                self._legend_sel_patches = []
-                self.canvas.draw_idle()
+        # 拖曳/點擊結束後清除選取紅框（鍵盤微調不需紅框）
+        self.legend_selected = False
+        for p in self._legend_sel_patches:
+            try:
+                p.remove()
+            except Exception:
+                pass
+        self._legend_sel_patches = []
+        self.canvas.draw_idle()
 
     # ------------------------------------------------------------------
     # 子刻度
@@ -1011,8 +1012,16 @@ class PolarizationPlotterApp:
             self.ax2.minorticks_off()
 
         if self.curves:
-            leg = self.ax.legend(loc='upper right', frameon=True, fontsize=self.tick_size)
+            old_leg = self.ax.get_legend()
+            leg = self.ax.legend(loc='upper right', frameon=True,
+                                 fontsize=14, prop={'family': 'Arial'})
+            # 保留圖例位置：若先前有自訂 anchor（拖曳/鍵盤微調過），沿用
+            if old_leg is not None and getattr(self, '_legend_pos_custom', False):
+                anchor = getattr(self, '_drag_anchor', None)
+                if anchor is not None:
+                    leg.set_bbox_to_anchor(anchor, transform=self.fig.transFigure)
             leg.set_draggable(True)
+            self._legend = leg
 
         # 統一設定刻度字體（在所有 set_xticks/子刻度之後執行，確保不被覆蓋）
         # 刻度與軸標題綁定相同字體（font_name）
