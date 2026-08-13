@@ -182,7 +182,7 @@ class PolarizationPlotterApp:
         tk.Checkbutton(pw_frame, text="功率 marker", variable=self.power_marker_global,
                        command=self.redraw).pack(side=tk.LEFT, padx=(8, 0))
 
-        # 曲線外觀（全域統一）
+        # 曲線外觀（全域統一）——第 1 行
         tk.Label(gf, text="曲線外觀:").grid(row=2, column=0, sticky="w")
         cf2 = tk.Frame(gf)
         cf2.grid(row=2, column=1, sticky="ew")
@@ -200,24 +200,22 @@ class PolarizationPlotterApp:
                    textvariable=self.line_width_global, width=4,
                    command=self.redraw).pack(side=tk.LEFT)
 
-        # 圖框線粗
-        tk.Label(cf2, text="框粗").pack(side=tk.LEFT, padx=(6, 0))
+        # 曲線外觀第 2 行（框粗/tick粗/tick長）
+        cf3 = tk.Frame(gf)
+        cf3.grid(row=2, column=1, sticky="ew", pady=(22, 0))
+        tk.Label(cf3, text="框粗").pack(side=tk.LEFT, padx=(0, 0))
         self.spine_width_global = tk.DoubleVar(value=1.0)   # 預設 1
-        tk.Spinbox(cf2, from_=0.5, to=5, increment=0.1,
+        tk.Spinbox(cf3, from_=0.5, to=5, increment=0.1,
                    textvariable=self.spine_width_global, width=4,
                    command=self.redraw).pack(side=tk.LEFT)
-
-        # tick 粗細（主/子同步，粗調）
-        tk.Label(cf2, text="tick粗").pack(side=tk.LEFT, padx=(6, 0))
+        tk.Label(cf3, text="tick粗").pack(side=tk.LEFT, padx=(6, 0))
         self.tick_width_global = tk.DoubleVar(value=1.0)    # 預設 1
-        tk.Spinbox(cf2, from_=0.5, to=3, increment=0.5,
+        tk.Spinbox(cf3, from_=0.5, to=3, increment=0.5,
                    textvariable=self.tick_width_global, width=4,
                    command=self.redraw).pack(side=tk.LEFT)
-
-        # tick 長度（主/子比例，粗調）
-        tk.Label(cf2, text="tick長").pack(side=tk.LEFT, padx=(6, 0))
+        tk.Label(cf3, text="tick長").pack(side=tk.LEFT, padx=(6, 0))
         self.tick_len_global = tk.DoubleVar(value=1.0)      # 預設 1（比例倍數）
-        tk.Spinbox(cf2, from_=0.5, to=3, increment=0.5,
+        tk.Spinbox(cf3, from_=0.5, to=3, increment=0.5,
                    textvariable=self.tick_len_global, width=4,
                    command=self.redraw).pack(side=tk.LEFT)
 
@@ -789,13 +787,18 @@ class PolarizationPlotterApp:
     def _on_legend_release(self, event):
         self.legend_dragging = False
         # 紅框消失，但選取狀態保留（鍵盤微調仍可用）
-        for p in self._legend_sel_patches:
+        # 移除 fig.patches 中所有選取框 + 強制重繪
+        for p in list(self._legend_sel_patches):
             try:
                 p.remove()
             except Exception:
                 pass
         self._legend_sel_patches = []
-        self.canvas.draw_idle()
+        # 清掉 fig.patches 中殘留的選取框
+        keep = [p for p in self.fig.patches
+                if not getattr(p, '_legend_sel', False)]
+        self.fig.patches[:] = keep
+        self.canvas.draw()   # 強制同步重繪
 
     # ------------------------------------------------------------------
     # 子刻度
