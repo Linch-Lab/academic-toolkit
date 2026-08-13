@@ -119,10 +119,11 @@ class PolarizationPlotterApp:
         self.curves = []          # list[PolarizationData]
         self.annotations = []     # list[(type, ...)]
         self.show_power_global = True   # 全域功率曲線開關
-        self.font_name = 'DejaVu Sans'
-        self.font_size = 10
-        self.title_size = 10
-        self.tick_size = 9
+        self.font_name = 'Arial'        # 預設字型
+        self.font_size = 18
+        self.title_size = 18            # 標題字體預設 18
+        self.tick_size = 18             # 刻度字體預設 18
+        self.title_bold = False         # 軸標題 bold 可設定，預設細
         self.legend_dragging = False
 
         self._build_ui()
@@ -172,7 +173,7 @@ class PolarizationPlotterApp:
         self.power_var = tk.BooleanVar(value=True)
         tk.Checkbutton(pw_frame, text="(右 Y 軸)", variable=self.power_var,
                        command=self.redraw).pack(side=tk.LEFT)
-        self.power_marker_global = tk.BooleanVar(value=False)
+        self.power_marker_global = tk.BooleanVar(value=True)   # 功率 marker 預設開
         tk.Checkbutton(pw_frame, text="功率 marker", variable=self.power_marker_global,
                        command=self.redraw).pack(side=tk.LEFT, padx=(8, 0))
 
@@ -184,50 +185,60 @@ class PolarizationPlotterApp:
         tk.Checkbutton(cf2, text="marker", variable=self.marker_global,
                        command=self.redraw).pack(side=tk.LEFT)
         tk.Label(cf2, text="大小").pack(side=tk.LEFT, padx=(6, 0))
-        self.marker_size_global = tk.DoubleVar(value=3.0)
+        self.marker_size_global = tk.DoubleVar(value=7.0)   # 預設 7
         tk.Spinbox(cf2, from_=1, to=20, increment=0.5,
                    textvariable=self.marker_size_global, width=4,
                    command=self.redraw).pack(side=tk.LEFT)
         tk.Label(cf2, text="線粗").pack(side=tk.LEFT, padx=(6, 0))
-        self.line_width_global = tk.DoubleVar(value=1.0)
+        self.line_width_global = tk.DoubleVar(value=2.0)    # 預設 2
         tk.Spinbox(cf2, from_=0.5, to=5, increment=0.1,
                    textvariable=self.line_width_global, width=4,
                    command=self.redraw).pack(side=tk.LEFT)
 
         # 單位顯示
         tk.Label(gf, text="單位顯示:").grid(row=3, column=0, sticky="w")
-        self.unit_display_var = tk.StringVar(value="A/cm²")
+        self.unit_display_var = tk.StringVar(value="mA/cm²")   # 預設 mA/cm²
         tk.OptionMenu(gf, self.unit_display_var, 'A/cm²', 'mA/cm²', 'A',
                       command=lambda _: self.redraw()).grid(row=3, column=1, sticky="ew")
 
         # 字型
         tk.Label(gf, text="字型:").grid(row=4, column=0, sticky="w")
-        self.font_var = tk.StringVar(value=self.font_name)
-        fonts = ['DejaVu Sans', 'Arial', 'Times New Roman', 'SimHei', 'Microsoft JhengHei']
+        self.font_var = tk.StringVar(value='Arial')   # 預設 Arial
+        fonts = ['Arial', 'DejaVu Sans', 'Times New Roman', 'SimHei', 'Microsoft JhengHei']
         tk.OptionMenu(gf, self.font_var, *fonts, command=lambda _: self._apply_global()).grid(row=4, column=1, sticky="ew")
 
         # 字體大小（軸標題 / 刻度分開）
         tk.Label(gf, text="標題字體:").grid(row=5, column=0, sticky="w")
-        self.title_size_var = tk.IntVar(value=self.title_size)
-        ts_spin = tk.Spinbox(gf, from_=6, to=30, textvariable=self.title_size_var, width=5,
+        self.title_size_var = tk.IntVar(value=18)   # 預設 18
+        ts_spin = tk.Spinbox(gf, from_=6, to=40, textvariable=self.title_size_var, width=4,
                              command=self._apply_global)
         ts_spin.grid(row=5, column=1, sticky="w")
         ts_spin.bind('<Return>', lambda e: self._apply_global())
         ts_spin.bind('<FocusOut>', lambda e: self._apply_global())
+        # 粗體勾選（預設細）
+        self.title_bold_var = tk.BooleanVar(value=False)
+        tk.Checkbutton(gf, text="標題粗體", variable=self.title_bold_var,
+                       command=self._apply_global).grid(row=5, column=1, sticky="e")
 
         tk.Label(gf, text="刻度字體:").grid(row=6, column=0, sticky="w")
-        self.tick_size_var = tk.IntVar(value=self.tick_size)
-        tk_spin = tk.Spinbox(gf, from_=6, to=30, textvariable=self.tick_size_var, width=5,
+        self.tick_size_var = tk.IntVar(value=18)   # 預設 18
+        tk_spin = tk.Spinbox(gf, from_=6, to=40, textvariable=self.tick_size_var, width=4,
                              command=self._apply_global)
         tk_spin.grid(row=6, column=1, sticky="w")
         tk_spin.bind('<Return>', lambda e: self._apply_global())
         tk_spin.bind('<FocusOut>', lambda e: self._apply_global())
 
+        # 圖比例
+        tk.Label(gf, text="圖比例:").grid(row=7, column=0, sticky="w")
+        self.fig_ratio_var = tk.StringVar(value="4:3")   # 預設 4:3
+        tk.OptionMenu(gf, self.fig_ratio_var, '4:3', '16:9', '1:1', '3:2',
+                      command=lambda _: self.redraw()).grid(row=7, column=1, sticky="ew")
+
         # 功率密度單位
-        tk.Label(gf, text="功率單位:").grid(row=7, column=0, sticky="w")
+        tk.Label(gf, text="功率單位:").grid(row=8, column=0, sticky="w")
         self.power_unit_var = tk.StringVar(value="W/cm²")
         tk.OptionMenu(gf, self.power_unit_var, 'W/cm²', 'mW/cm²', 'W',
-                      command=lambda _: self.redraw()).grid(row=7, column=1, sticky="ew")
+                      command=lambda _: self.redraw()).grid(row=8, column=1, sticky="ew")
 
         # ===== 軸設定 =====
         tk.Label(left, text="軸設定（空=自動）", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(6, 2))
@@ -295,7 +306,12 @@ class PolarizationPlotterApp:
     def _new_figure(self):
         for w in self.plot_frame.winfo_children():
             w.destroy()
-        self.fig = plt.Figure(figsize=(7, 5), dpi=100)
+        # 圖比例（預設 4:3）
+        ratio = getattr(self, 'fig_ratio_var', None)
+        r = ratio.get() if ratio else '4:3'
+        sizes = {'4:3': (7, 5.25), '16:9': (8, 4.5), '1:1': (6, 6), '3:2': (7.5, 5)}
+        w, h = sizes.get(r, (7, 5.25))
+        self.fig = plt.Figure(figsize=(w, h), dpi=100)
         self.ax = self.fig.add_subplot(111)
         self.ax2 = self.ax.twinx()  # 右 Y 軸（功率）
         self.ax2.spines['right'].set_visible(False)
@@ -520,6 +536,10 @@ class PolarizationPlotterApp:
             self.tick_size = int(self.tick_size_var.get())
         except (ValueError, tk.TclError):
             pass
+        try:
+            self.title_bold = bool(self.title_bold_var.get())
+        except Exception:
+            pass
         self.redraw()
 
     # ------------------------------------------------------------------
@@ -649,6 +669,12 @@ class PolarizationPlotterApp:
     # 繪圖
     # ------------------------------------------------------------------
     def redraw(self):
+        # 圖比例變更時重建 figure
+        sizes = {'4:3': (7, 5.25), '16:9': (8, 4.5), '1:1': (6, 6), '3:2': (7.5, 5)}
+        r = self.fig_ratio_var.get() if hasattr(self, 'fig_ratio_var') else '4:3'
+        target = sizes.get(r, (7, 5.25))
+        if self.fig.get_size_inches()[0] != target[0] or self.fig.get_size_inches()[1] != target[1]:
+            self._new_figure()
         self.ax.clear()
         self.ax2.clear()
 
@@ -713,9 +739,10 @@ class PolarizationPlotterApp:
                 _, x1, y1, x2, y2, color = a
                 self.ax.plot([x1, x2], [y1, y2], color=color, lw=1.5)
 
-        # 版面
-        self.ax.set_xlabel(xlabel, fontsize=self.title_size, fontweight='bold', fontname=self.font_name)
-        self.ax.set_ylabel(ylabel, fontsize=self.title_size, fontweight='bold', fontname=self.font_name)
+        # 版面（bold 可設定，預設細）
+        fw = 'bold' if self.title_bold else 'normal'
+        self.ax.set_xlabel(xlabel, fontsize=self.title_size, fontweight=fw, fontname=self.font_name)
+        self.ax.set_ylabel(ylabel, fontsize=self.title_size, fontweight=fw, fontname=self.font_name)
         self.ax.tick_params(labelsize=self.tick_size)
 
         # 軸範圍：預設 auto scale；使用者輸入自訂值時才固定
@@ -767,7 +794,9 @@ class PolarizationPlotterApp:
             self.ax2.spines['right'].set_visible(True)
             # 功率單位：主畫面設定
             p_unit_txt = self.power_unit_var.get()
-            self.ax2.set_ylabel(f'Power Density ({p_unit_txt})', fontsize=self.title_size, fontweight='bold')
+            fw2 = 'bold' if self.title_bold else 'normal'
+            self.ax2.set_ylabel(f'Power Density ({p_unit_txt})', fontsize=self.title_size,
+                                fontweight=fw2, fontname=self.font_name)
             self.ax2.tick_params(labelsize=self.tick_size)
             # 將 Y2 標題推到右軸外側——位置隨刻度字體大小動態調整
             # （字體越大，標題越靠右，維持與刻度的近距離）
