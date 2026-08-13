@@ -322,6 +322,11 @@ class PolarizationPlotterApp:
         self.ax2.spines['right'].set_visible(False)
         self.ax2.set_yticks([])
         self.ax2.set_ylabel('')
+        # 圖框（spine）線粗預設 2
+        for sp in self.ax.spines.values():
+            sp.set_linewidth(2)
+        for sp in self.ax2.spines.values():
+            sp.set_linewidth(2)
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.plot_frame)
         # 固定 canvas 大小（依 figsize×dpi），不隨視窗拖曳變形
         w_in, h_in = self.fig.get_size_inches()
@@ -817,9 +822,10 @@ class PolarizationPlotterApp:
             self.ax2.tick_params(axis='y', which='both', direction=y2dir)
             # 將 Y2 標題推到右軸外側——位置隨刻度字體大小動態調整
             # （字體越大，標題越靠右，維持與刻度的近距離）
-            # 像素實測：1.04→重疊(-12px)、1.06→碰觸(-2px)、1.08→8px
-            # 1.05 → ~4px 更緊湊
-            offset = 1.05 + max(0, self.tick_size - 9) * 0.012
+            # Y2 標題位置：依刻度字體大小動態補償（18pt 刻度需較右）
+            # 實測：9pt→1.08=8px 理想；18pt→1.17=5.6px 理想
+            # 公式：基準 1.08 + (tick_size-9) × 0.010
+            offset = 1.08 + max(0, self.tick_size - 9) * 0.010
             self.ax2.yaxis.set_label_coords(offset, 0.5)
             # Y2 軸範圍
             try:
