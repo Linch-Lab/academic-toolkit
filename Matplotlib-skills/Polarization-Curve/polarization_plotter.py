@@ -195,6 +195,27 @@ class PolarizationPlotterApp:
                    textvariable=self.line_width_global, width=4,
                    command=self.redraw).pack(side=tk.LEFT)
 
+        # 圖框線粗
+        tk.Label(cf2, text="框粗").pack(side=tk.LEFT, padx=(6, 0))
+        self.spine_width_global = tk.DoubleVar(value=1.0)   # 預設 1
+        tk.Spinbox(cf2, from_=0.5, to=5, increment=0.1,
+                   textvariable=self.spine_width_global, width=4,
+                   command=self.redraw).pack(side=tk.LEFT)
+
+        # tick 粗細（主/子同步，粗調）
+        tk.Label(cf2, text="tick粗").pack(side=tk.LEFT, padx=(6, 0))
+        self.tick_width_global = tk.DoubleVar(value=1.0)    # 預設 1
+        tk.Spinbox(cf2, from_=0.5, to=3, increment=0.5,
+                   textvariable=self.tick_width_global, width=4,
+                   command=self.redraw).pack(side=tk.LEFT)
+
+        # tick 長度（主/子比例，粗調）
+        tk.Label(cf2, text="tick長").pack(side=tk.LEFT, padx=(6, 0))
+        self.tick_len_global = tk.DoubleVar(value=1.0)      # 預設 1（比例倍數）
+        tk.Spinbox(cf2, from_=0.5, to=3, increment=0.5,
+                   textvariable=self.tick_len_global, width=4,
+                   command=self.redraw).pack(side=tk.LEFT)
+
         # 單位顯示
         tk.Label(gf, text="單位顯示:").grid(row=3, column=0, sticky="w")
         self.unit_display_var = tk.StringVar(value="mA/cm²")   # 預設 mA/cm²
@@ -322,11 +343,13 @@ class PolarizationPlotterApp:
         self.ax2.spines['right'].set_visible(False)
         self.ax2.set_yticks([])
         self.ax2.set_ylabel('')
-        # 圖框（spine）線粗預設 2
+        # 圖框（spine）線粗（全域設定，預設 1）
+        lw = getattr(self, 'spine_width_global', None)
+        spine_lw = lw.get() if lw else 1.0
         for sp in self.ax.spines.values():
-            sp.set_linewidth(2)
+            sp.set_linewidth(spine_lw)
         for sp in self.ax2.spines.values():
-            sp.set_linewidth(2)
+            sp.set_linewidth(spine_lw)
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.plot_frame)
         # 固定 canvas 大小（依 figsize×dpi），不隨視窗拖曳變形
         w_in, h_in = self.fig.get_size_inches()
@@ -691,6 +714,12 @@ class PolarizationPlotterApp:
             self._new_figure()
         self.ax.clear()
         self.ax2.clear()
+        # 圖框線粗（全域設定）
+        spine_lw = self.spine_width_global.get()
+        for sp in self.ax.spines.values():
+            sp.set_linewidth(spine_lw)
+        for sp in self.ax2.spines.values():
+            sp.set_linewidth(spine_lw)
 
         invert = self.axis_var.get().startswith("X=V")
         unit_txt = self.unit_display_var.get()   # A/cm² / mA/cm² / A
@@ -761,8 +790,16 @@ class PolarizationPlotterApp:
         # tick 方向（每軸獨立：內/外）——主+子 tick 同時設定
         xdir = 'in' if self.xdir_var.get() == '內' else 'out'
         ydir = 'in' if self.ydir_var.get() == '內' else 'out'
-        self.ax.tick_params(axis='x', which='both', direction=xdir)
-        self.ax.tick_params(axis='y', which='both', direction=ydir)
+        # tick 粗細與長度（主/子固定比例：主=1.0, 子=0.6；長度倍數=tick_len）
+        tw = self.tick_width_global.get()
+        tl = self.tick_len_global.get()
+        self.ax.tick_params(axis='x', which='both', direction=xdir,
+                            width=tw, length=3.5*tl)
+        self.ax.tick_params(axis='y', which='both', direction=ydir,
+                            width=tw, length=3.5*tl)
+        # 子 tick 固定比例（主長度 × 0.6）
+        self.ax.tick_params(axis='x', which='minor', length=2.1*tl)
+        self.ax.tick_params(axis='y', which='minor', length=2.1*tl)
 
         # 軸範圍：預設 auto scale；使用者輸入自訂值時才固定
         if self.curves:
@@ -817,9 +854,12 @@ class PolarizationPlotterApp:
             self.ax2.set_ylabel(f'Power Density ({p_unit_txt})', fontsize=self.title_size,
                                 fontweight=fw2, fontname=self.font_name)
             self.ax2.tick_params(labelsize=self.tick_size)
-            # Y2 tick 方向（主+子同時）
+            # Y2 tick 方向（主+子同時）+ 粗細/長度
             y2dir = 'in' if self.y2dir_var.get() == '內' else 'out'
-            self.ax2.tick_params(axis='y', which='both', direction=y2dir)
+            self.ax2.tick_params(axis='y', which='both', direction=y2dir,
+                                 width=self.tick_width_global.get(),
+                                 length=3.5*self.tick_len_global.get())
+            self.ax2.tick_params(axis='y', which='minor', length=2.1*self.tick_len_global.get())
             # 將 Y2 標題推到右軸外側——位置隨刻度字體大小動態調整
             # （字體越大，標題越靠右，維持與刻度的近距離）
             # Y2 標題位置：依刻度字體大小動態補償（18pt 刻度需較右）
