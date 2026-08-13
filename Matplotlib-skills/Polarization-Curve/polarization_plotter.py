@@ -753,11 +753,11 @@ class PolarizationPlotterApp:
         self.ax.set_xlabel(xlabel, fontsize=self.title_size, fontweight=fw, fontname=self.font_name)
         self.ax.set_ylabel(ylabel, fontsize=self.title_size, fontweight=fw, fontname=self.font_name)
         self.ax.tick_params(labelsize=self.tick_size)
-        # tick 方向（每軸獨立：內/外）
+        # tick 方向（每軸獨立：內/外）——主+子 tick 同時設定
         xdir = 'in' if self.xdir_var.get() == '內' else 'out'
         ydir = 'in' if self.ydir_var.get() == '內' else 'out'
-        self.ax.tick_params(axis='x', direction=xdir)
-        self.ax.tick_params(axis='y', direction=ydir)
+        self.ax.tick_params(axis='x', which='both', direction=xdir)
+        self.ax.tick_params(axis='y', which='both', direction=ydir)
 
         # 軸範圍：預設 auto scale；使用者輸入自訂值時才固定
         if self.curves:
@@ -812,9 +812,9 @@ class PolarizationPlotterApp:
             self.ax2.set_ylabel(f'Power Density ({p_unit_txt})', fontsize=self.title_size,
                                 fontweight=fw2, fontname=self.font_name)
             self.ax2.tick_params(labelsize=self.tick_size)
-            # Y2 tick 方向
+            # Y2 tick 方向（主+子同時）
             y2dir = 'in' if self.y2dir_var.get() == '內' else 'out'
-            self.ax2.tick_params(axis='y', direction=y2dir)
+            self.ax2.tick_params(axis='y', which='both', direction=y2dir)
             # 將 Y2 標題推到右軸外側——位置隨刻度字體大小動態調整
             # （字體越大，標題越靠右，維持與刻度的近距離）
             # 像素實測：1.04→重疊(-12px)、1.06→碰觸(-2px)、1.08→8px
