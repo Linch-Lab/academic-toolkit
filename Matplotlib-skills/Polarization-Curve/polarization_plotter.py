@@ -236,7 +236,7 @@ class PolarizationPlotterApp:
 
         # 功率密度單位
         tk.Label(gf, text="功率單位:").grid(row=8, column=0, sticky="w")
-        self.power_unit_var = tk.StringVar(value="W/cm²")
+        self.power_unit_var = tk.StringVar(value="mW/cm²")   # 預設 mW/cm²
         tk.OptionMenu(gf, self.power_unit_var, 'W/cm²', 'mW/cm²', 'W',
                       command=lambda _: self.redraw()).grid(row=8, column=1, sticky="ew")
 
@@ -260,21 +260,21 @@ class PolarizationPlotterApp:
             tk.Entry(f, textvariable=minor_n_var, width=3).pack(side=tk.LEFT)
             parent.columnconfigure(1, weight=1)
 
-        self.xmin_var = tk.StringVar(value="")
+        self.xmin_var = tk.StringVar(value="0")    # 起點預設 0
         self.xmax_var = tk.StringVar(value="")
         self.xn_var = tk.StringVar(value="")
-        self.xminor_var = tk.BooleanVar(value=False)
-        self.xminor_n_var = tk.StringVar(value="")
-        self.ymin_var = tk.StringVar(value="")
+        self.xminor_var = tk.BooleanVar(value=True)  # 子刻度預設開啟
+        self.xminor_n_var = tk.StringVar(value="4")  # 預設 4 子刻度
+        self.ymin_var = tk.StringVar(value="0")    # 起點預設 0
         self.ymax_var = tk.StringVar(value="")
         self.yn_var = tk.StringVar(value="")
-        self.yminor_var = tk.BooleanVar(value=False)
-        self.yminor_n_var = tk.StringVar(value="")
-        self.y2min_var = tk.StringVar(value="")
+        self.yminor_var = tk.BooleanVar(value=True)  # 子刻度預設開啟
+        self.yminor_n_var = tk.StringVar(value="4")
+        self.y2min_var = tk.StringVar(value="0")   # 起點預設 0
         self.y2max_var = tk.StringVar(value="")
         self.y2n_var = tk.StringVar(value="")
-        self.y2minor_var = tk.BooleanVar(value=False)
-        self.y2minor_n_var = tk.StringVar(value="")
+        self.y2minor_var = tk.BooleanVar(value=True)  # 子刻度預設開啟
+        self.y2minor_n_var = tk.StringVar(value="4")
 
         make_axis_row(axf, 0, "X:", self.xmin_var, self.xmax_var, self.xn_var, self.xminor_var, self.xminor_n_var)
         make_axis_row(axf, 1, "Y:", self.ymin_var, self.ymax_var, self.yn_var, self.yminor_var, self.yminor_n_var)
@@ -318,7 +318,11 @@ class PolarizationPlotterApp:
         self.ax2.set_yticks([])
         self.ax2.set_ylabel('')
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.plot_frame)
-        self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        # 固定 canvas 大小（依 figsize×dpi），不隨視窗拖曳變形
+        w_in, h_in = self.fig.get_size_inches()
+        self.canvas.get_tk_widget().config(width=int(w_in * self.fig.dpi),
+                                           height=int(h_in * self.fig.dpi))
+        self.canvas.get_tk_widget().pack(padx=4, pady=4)
         self.toolbar = NavigationToolbar2Tk(self.canvas, self.plot_frame)
         self.toolbar.update()
         self.canvas.mpl_connect('button_press_event', self._on_legend_press)
@@ -800,9 +804,9 @@ class PolarizationPlotterApp:
             self.ax2.tick_params(labelsize=self.tick_size)
             # 將 Y2 標題推到右軸外側——位置隨刻度字體大小動態調整
             # （字體越大，標題越靠右，維持與刻度的近距離）
-            # 像素實測：1.04→重疊(-12px)、1.06→碰觸(-2px)、1.08→8px 理想、1.10→18px 遠
-            # 基準：tick_size 9 → 1.08；每 +1pt → +0.012
-            offset = 1.08 + max(0, self.tick_size - 9) * 0.012
+            # 像素實測：1.04→重疊(-12px)、1.06→碰觸(-2px)、1.08→8px
+            # 1.05 → ~4px 更緊湊
+            offset = 1.05 + max(0, self.tick_size - 9) * 0.012
             self.ax2.yaxis.set_label_coords(offset, 0.5)
             # Y2 軸範圍
             try:
