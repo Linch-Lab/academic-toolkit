@@ -219,11 +219,17 @@ class PolarizationPlotterApp:
                    textvariable=self.tick_len_global, width=4,
                    command=self.redraw).pack(side=tk.LEFT)
 
-        # 單位顯示
+        # 單位顯示 + 功率單位（同列）
         tk.Label(gf, text="單位顯示:").grid(row=3, column=0, sticky="w")
+        uf = tk.Frame(gf)
+        uf.grid(row=3, column=1, sticky="ew")
         self.unit_display_var = tk.StringVar(value="mA/cm²")   # 預設 mA/cm²
-        tk.OptionMenu(gf, self.unit_display_var, 'A/cm²', 'mA/cm²', 'A',
-                      command=lambda _: self.redraw()).grid(row=3, column=1, sticky="ew")
+        tk.OptionMenu(uf, self.unit_display_var, 'A/cm²', 'mA/cm²', 'A',
+                      command=lambda _: self.redraw()).pack(side=tk.LEFT)
+        tk.Label(uf, text="功率單位:").pack(side=tk.LEFT, padx=(8, 0))
+        self.power_unit_var = tk.StringVar(value="mW/cm²")   # 預設 mW/cm²
+        tk.OptionMenu(uf, self.power_unit_var, 'W/cm²', 'mW/cm²', 'W',
+                      command=lambda _: self.redraw()).pack(side=tk.LEFT)
 
         # 字型
         tk.Label(gf, text="字型:").grid(row=4, column=0, sticky="w")
@@ -231,24 +237,25 @@ class PolarizationPlotterApp:
         fonts = ['Arial', 'DejaVu Sans', 'Times New Roman', 'SimHei', 'Microsoft JhengHei']
         tk.OptionMenu(gf, self.font_var, *fonts, command=lambda _: self._apply_global()).grid(row=4, column=1, sticky="ew")
 
-        # 字體大小（軸標題 / 刻度分開）
+        # 字體大小（標題 + 刻度同列）
         tk.Label(gf, text="標題字體:").grid(row=5, column=0, sticky="w")
+        fs_f = tk.Frame(gf)
+        fs_f.grid(row=5, column=1, sticky="ew")
         self.title_size_var = tk.IntVar(value=18)   # 預設 18
-        ts_spin = tk.Spinbox(gf, from_=6, to=40, textvariable=self.title_size_var, width=4,
+        ts_spin = tk.Spinbox(fs_f, from_=6, to=40, textvariable=self.title_size_var, width=4,
                              command=self._apply_global)
-        ts_spin.grid(row=5, column=1, sticky="w")
+        ts_spin.pack(side=tk.LEFT)
         ts_spin.bind('<Return>', lambda e: self._apply_global())
         ts_spin.bind('<FocusOut>', lambda e: self._apply_global())
         # 粗體勾選（預設細）
         self.title_bold_var = tk.BooleanVar(value=False)
-        tk.Checkbutton(gf, text="標題粗體", variable=self.title_bold_var,
-                       command=self._apply_global).grid(row=5, column=1, sticky="e")
-
-        tk.Label(gf, text="刻度字體:").grid(row=6, column=0, sticky="w")
+        tk.Checkbutton(fs_f, text="粗體", variable=self.title_bold_var,
+                       command=self._apply_global).pack(side=tk.LEFT, padx=(6, 0))
+        tk.Label(fs_f, text="刻度:").pack(side=tk.LEFT, padx=(8, 0))
         self.tick_size_var = tk.IntVar(value=18)   # 預設 18
-        tk_spin = tk.Spinbox(gf, from_=6, to=40, textvariable=self.tick_size_var, width=4,
+        tk_spin = tk.Spinbox(fs_f, from_=6, to=40, textvariable=self.tick_size_var, width=4,
                              command=self._apply_global)
-        tk_spin.grid(row=6, column=1, sticky="w")
+        tk_spin.pack(side=tk.LEFT)
         tk_spin.bind('<Return>', lambda e: self._apply_global())
         tk_spin.bind('<FocusOut>', lambda e: self._apply_global())
 
@@ -257,12 +264,6 @@ class PolarizationPlotterApp:
         self.fig_ratio_var = tk.StringVar(value="4:3")   # 預設 4:3
         tk.OptionMenu(gf, self.fig_ratio_var, '4:3', '16:9', '1:1', '3:2',
                       command=lambda _: self.redraw()).grid(row=7, column=1, sticky="ew")
-
-        # 功率密度單位
-        tk.Label(gf, text="功率單位:").grid(row=8, column=0, sticky="w")
-        self.power_unit_var = tk.StringVar(value="mW/cm²")   # 預設 mW/cm²
-        tk.OptionMenu(gf, self.power_unit_var, 'W/cm²', 'mW/cm²', 'W',
-                      command=lambda _: self.redraw()).grid(row=8, column=1, sticky="ew")
 
         # ===== 軸設定 =====
         tk.Label(left, text="軸設定（空=自動）", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(6, 2))
@@ -718,6 +719,7 @@ class PolarizationPlotterApp:
         rect = plt.Rectangle((x0, y0), x1-x0, y1-y0,
                              transform=self.fig.transFigure,
                              fill=False, edgecolor='red', linestyle='--', lw=1.5)
+        rect._legend_sel = True   # 標記為選取框（供釋放時過濾）
         self.fig.patches.append(rect)
         self._legend_sel_patches.append(rect)
         self.canvas.draw_idle()
@@ -866,6 +868,17 @@ class PolarizationPlotterApp:
             self._new_figure()
         self.ax.clear()
         self.ax2.clear()
+        # 清除殘留的圖例選取框（fig.patches 中 _legend_sel 標記者）
+        self._legend_sel_patches = [
+            p for p in self._legend_sel_patches if p in self.fig.patches]
+        for p in self._legend_sel_patches:
+            try:
+                p.remove()
+            except Exception:
+                pass
+        self._legend_sel_patches = []
+        self.fig.patches[:] = [p for p in self.fig.patches
+                               if not getattr(p, '_legend_sel', False)]
         # 圖框線粗（全域設定）
         spine_lw = self.spine_width_global.get()
         for sp in self.ax.spines.values():
