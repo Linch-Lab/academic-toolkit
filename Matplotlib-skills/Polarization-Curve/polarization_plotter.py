@@ -182,10 +182,13 @@ class PolarizationPlotterApp:
         tk.Checkbutton(pw_frame, text="功率 marker", variable=self.power_marker_global,
                        command=self.redraw).pack(side=tk.LEFT, padx=(8, 0))
 
-        # 曲線外觀（全域統一）——第 1 行
-        tk.Label(gf, text="曲線外觀:").grid(row=2, column=0, sticky="w")
-        cf2 = tk.Frame(gf)
-        cf2.grid(row=2, column=1, sticky="ew")
+        # 曲線外觀（全域統一）——上下兩行放同一容器
+        tk.Label(gf, text="曲線外觀:").grid(row=2, column=0, sticky="nw")
+        ca_f = tk.Frame(gf)
+        ca_f.grid(row=2, column=1, sticky="ew")
+        # 第 1 行
+        cf2 = tk.Frame(ca_f)
+        cf2.pack(fill=tk.X)
         self.marker_global = tk.BooleanVar(value=True)
         tk.Checkbutton(cf2, text="marker", variable=self.marker_global,
                        command=self.redraw).pack(side=tk.LEFT)
@@ -199,10 +202,9 @@ class PolarizationPlotterApp:
         tk.Spinbox(cf2, from_=0.5, to=5, increment=0.1,
                    textvariable=self.line_width_global, width=4,
                    command=self.redraw).pack(side=tk.LEFT)
-
-        # 曲線外觀第 2 行（框粗/tick粗/tick長）
-        cf3 = tk.Frame(gf)
-        cf3.grid(row=2, column=1, sticky="ew", pady=(22, 0))
+        # 第 2 行（框粗/tick粗/tick長）
+        cf3 = tk.Frame(ca_f)
+        cf3.pack(fill=tk.X, pady=(2, 0))
         tk.Label(cf3, text="框粗").pack(side=tk.LEFT, padx=(0, 0))
         self.spine_width_global = tk.DoubleVar(value=1.0)   # 預設 1
         tk.Spinbox(cf3, from_=0.5, to=5, increment=0.1,
