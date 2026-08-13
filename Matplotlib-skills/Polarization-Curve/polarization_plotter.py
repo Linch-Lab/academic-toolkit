@@ -245,7 +245,7 @@ class PolarizationPlotterApp:
         axf = tk.Frame(left)
         axf.pack(fill=tk.X)
 
-        def make_axis_row(parent, row, label, min_var, max_var, n_var, minor_var, minor_n_var):
+        def make_axis_row(parent, row, label, min_var, max_var, n_var, minor_var, minor_n_var, dir_var):
             tk.Label(parent, text=label).grid(row=row, column=0, sticky="w", padx=(0, 2))
             f = tk.Frame(parent)
             f.grid(row=row, column=1, sticky="ew")
@@ -258,6 +258,8 @@ class PolarizationPlotterApp:
                            command=self.redraw).pack(side=tk.LEFT, padx=(4, 0))
             tk.Label(f, text="子數").pack(side=tk.LEFT)
             tk.Entry(f, textvariable=minor_n_var, width=3).pack(side=tk.LEFT)
+            tk.OptionMenu(f, dir_var, '外', '內',
+                          command=lambda _: self.redraw()).pack(side=tk.LEFT, padx=(4, 0))
             parent.columnconfigure(1, weight=1)
 
         self.xmin_var = tk.StringVar(value="0")    # 起點預設 0
@@ -265,20 +267,23 @@ class PolarizationPlotterApp:
         self.xn_var = tk.StringVar(value="")
         self.xminor_var = tk.BooleanVar(value=True)  # 子刻度預設開啟
         self.xminor_n_var = tk.StringVar(value="4")  # 預設 4 子刻度
+        self.xdir_var = tk.StringVar(value="外")    # tick 方向預設外
         self.ymin_var = tk.StringVar(value="0")    # 起點預設 0
         self.ymax_var = tk.StringVar(value="")
         self.yn_var = tk.StringVar(value="")
         self.yminor_var = tk.BooleanVar(value=True)  # 子刻度預設開啟
         self.yminor_n_var = tk.StringVar(value="4")
+        self.ydir_var = tk.StringVar(value="外")
         self.y2min_var = tk.StringVar(value="0")   # 起點預設 0
         self.y2max_var = tk.StringVar(value="")
         self.y2n_var = tk.StringVar(value="")
         self.y2minor_var = tk.BooleanVar(value=True)  # 子刻度預設開啟
         self.y2minor_n_var = tk.StringVar(value="4")
+        self.y2dir_var = tk.StringVar(value="外")
 
-        make_axis_row(axf, 0, "X:", self.xmin_var, self.xmax_var, self.xn_var, self.xminor_var, self.xminor_n_var)
-        make_axis_row(axf, 1, "Y:", self.ymin_var, self.ymax_var, self.yn_var, self.yminor_var, self.yminor_n_var)
-        make_axis_row(axf, 2, "Y₂:", self.y2min_var, self.y2max_var, self.y2n_var, self.y2minor_var, self.y2minor_n_var)
+        make_axis_row(axf, 0, "X:", self.xmin_var, self.xmax_var, self.xn_var, self.xminor_var, self.xminor_n_var, self.xdir_var)
+        make_axis_row(axf, 1, "Y:", self.ymin_var, self.ymax_var, self.yn_var, self.yminor_var, self.yminor_n_var, self.ydir_var)
+        make_axis_row(axf, 2, "Y₂:", self.y2min_var, self.y2max_var, self.y2n_var, self.y2minor_var, self.y2minor_n_var, self.y2dir_var)
 
         tk.Button(left, text="套用軸設定", command=self.redraw).pack(fill=tk.X, pady=(2, 0))
 
@@ -748,6 +753,11 @@ class PolarizationPlotterApp:
         self.ax.set_xlabel(xlabel, fontsize=self.title_size, fontweight=fw, fontname=self.font_name)
         self.ax.set_ylabel(ylabel, fontsize=self.title_size, fontweight=fw, fontname=self.font_name)
         self.ax.tick_params(labelsize=self.tick_size)
+        # tick 方向（每軸獨立：內/外）
+        xdir = 'in' if self.xdir_var.get() == '內' else 'out'
+        ydir = 'in' if self.ydir_var.get() == '內' else 'out'
+        self.ax.tick_params(axis='x', direction=xdir)
+        self.ax.tick_params(axis='y', direction=ydir)
 
         # 軸範圍：預設 auto scale；使用者輸入自訂值時才固定
         if self.curves:
@@ -802,6 +812,9 @@ class PolarizationPlotterApp:
             self.ax2.set_ylabel(f'Power Density ({p_unit_txt})', fontsize=self.title_size,
                                 fontweight=fw2, fontname=self.font_name)
             self.ax2.tick_params(labelsize=self.tick_size)
+            # Y2 tick 方向
+            y2dir = 'in' if self.y2dir_var.get() == '內' else 'out'
+            self.ax2.tick_params(axis='y', direction=y2dir)
             # 將 Y2 標題推到右軸外側——位置隨刻度字體大小動態調整
             # （字體越大，標題越靠右，維持與刻度的近距離）
             # 像素實測：1.04→重疊(-12px)、1.06→碰觸(-2px)、1.08→8px
