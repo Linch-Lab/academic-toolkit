@@ -488,9 +488,19 @@ class PolarizationPlotterApp:
         if new < 0 or new >= len(self.curves):
             return
         self.curves[idx], self.curves[new] = self.curves[new], self.curves[idx]
+        # 排序後重新依序分配顏色/marker（含 power marker）
+        self._reassign_styles()
         self._refresh_list()
         self.listbox.selection_set(new)
         self.redraw()
+
+    def _reassign_styles(self):
+        """依目前列表順序重新分配顏色/marker/power marker（依序不重複）"""
+        for i, c in enumerate(self.curves):
+            color, marker = self._auto_style(i)
+            c.color = color
+            c.marker_style = marker
+            c.power_marker_style = marker   # power marker 同步
 
     def _refresh_list(self):
         self.listbox.delete(0, tk.END)
@@ -644,12 +654,12 @@ class PolarizationPlotterApp:
             inv = self.fig.transFigure.inverted()
             fx, fy = inv.transform((leg_win.x0, leg_win.y0))
             self._drag_anchor = (fx, fy)
-            # 綁定鍵盤方向鍵（微調位置）
+            # 綁定鍵盤方向鍵（微調位置）——用 Tk bind 更可靠
             self.canvas.get_tk_widget().focus_set()
-            self.canvas.mpl_connect('key_press_event', self._on_legend_key)
+            self.canvas.get_tk_widget().bind('<KeyPress>', self._on_legend_key_tk)
 
     def _on_legend_key(self, event):
-        """鍵盤方向鍵微調圖例位置（圖座標小步長）"""
+        """鍵盤方向鍵微調圖例位置（圖座標小步長）——Matplotlib 版"""
         if not getattr(self, 'legend_selected', False):
             return
         leg = self.ax.get_legend()
@@ -663,6 +673,29 @@ class PolarizationPlotterApp:
         elif event.key == 'up':
             ay += step
         elif event.key == 'down':
+            ay -= step
+        else:
+            return
+        leg.set_bbox_to_anchor((ax, ay), transform=self.fig.transFigure)
+        self._drag_anchor = (ax, ay)
+        self._legend_pos_custom = True
+        self.canvas.draw_idle()
+
+    def _on_legend_key_tk(self, event):
+        """Tk 鍵盤事件版（方向鍵微調圖例）"""
+        if not getattr(self, 'legend_selected', False):
+            return
+        leg = self.ax.get_legend()
+        if leg is None: return
+        step = 0.005
+        ax, ay = self._drag_anchor
+        if event.keysym == 'Left':
+            ax -= step
+        elif event.keysym == 'Right':
+            ax += step
+        elif event.keysym == 'Up':
+            ay += step
+        elif event.keysym == 'Down':
             ay -= step
         else:
             return
@@ -755,8 +788,7 @@ class PolarizationPlotterApp:
 
     def _on_legend_release(self, event):
         self.legend_dragging = False
-        # 拖曳/點擊結束後清除選取紅框（鍵盤微調不需紅框）
-        self.legend_selected = False
+        # 紅框消失，但選取狀態保留（鍵盤微調仍可用）
         for p in self._legend_sel_patches:
             try:
                 p.remove()
@@ -1012,14 +1044,11 @@ class PolarizationPlotterApp:
             self.ax2.minorticks_off()
 
         if self.curves:
-            old_leg = self.ax.get_legend()
             leg = self.ax.legend(loc='upper right', frameon=True,
                                  fontsize=14, prop={'family': 'Arial'})
             # 保留圖例位置：若先前有自訂 anchor（拖曳/鍵盤微調過），沿用
-            if old_leg is not None and getattr(self, '_legend_pos_custom', False):
-                anchor = getattr(self, '_drag_anchor', None)
-                if anchor is not None:
-                    leg.set_bbox_to_anchor(anchor, transform=self.fig.transFigure)
+            if getattr(self, '_legend_pos_custom', False) and self._drag_anchor is not None:
+                leg.set_bbox_to_anchor(self._drag_anchor, transform=self.fig.transFigure)
             leg.set_draggable(True)
             self._legend = leg
 
