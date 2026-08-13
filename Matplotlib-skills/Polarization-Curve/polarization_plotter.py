@@ -125,6 +125,8 @@ class PolarizationPlotterApp:
         self.tick_size = 18             # 刻度字體預設 18
         self.title_bold = False         # 軸標題 bold 可設定，預設細
         self.legend_dragging = False
+        self.legend_selected = False    # 圖例選取狀態
+        self._legend_sel_patches = []   # 選取框 patches
 
         self._build_ui()
         self._new_figure()
@@ -609,22 +611,113 @@ class PolarizationPlotterApp:
         self.redraw()
 
     # ------------------------------------------------------------------
-    # 圖例拖曳
+    # 圖例互動（拖曳 / 選取+鍵盤微調 / 雙擊設定）
     # ------------------------------------------------------------------
     def _on_legend_press(self, event):
         if event.inaxes is None: return
         leg = self.ax.get_legend()
         if leg is None: return
         if leg.get_window_extent().contains(event.x, event.y):
+            # 雙擊 → 設定視窗
+            if event.dblclick:
+                self._legend_settings()
+                return
+            # 單擊 → 選取 + 可拖曳
+            self.legend_selected = True
+            self._draw_legend_selection(leg)
             self.legend_dragging = True
-            # 記錄按下時的滑鼠位置
             self._drag_last = (event.x, event.y)
-            # 用圖例目前 window extent（像素）反推 anchor（圖座標）
-            # anchor = 圖例左下角在圖座標的位置
             leg_win = leg.get_window_extent()
             inv = self.fig.transFigure.inverted()
             fx, fy = inv.transform((leg_win.x0, leg_win.y0))
             self._drag_anchor = (fx, fy)
+            # 綁定鍵盤方向鍵（微調位置）
+            self.canvas.get_tk_widget().focus_set()
+            self.canvas.mpl_connect('key_press_event', self._on_legend_key)
+
+    def _on_legend_key(self, event):
+        """鍵盤方向鍵微調圖例位置（圖座標小步長）"""
+        if not getattr(self, 'legend_selected', False):
+            return
+        leg = self.ax.get_legend()
+        if leg is None: return
+        step = 0.005   # 每次微調 0.5% 圖寬/高
+        ax, ay = self._drag_anchor
+        if event.key == 'left':
+            ax -= step
+        elif event.key == 'right':
+            ax += step
+        elif event.key == 'up':
+            ay += step
+        elif event.key == 'down':
+            ay -= step
+        else:
+            return
+        leg.set_bbox_to_anchor((ax, ay), transform=self.fig.transFigure)
+        self._drag_anchor = (ax, ay)
+        self.canvas.draw_idle()
+
+    def _draw_legend_selection(self, leg):
+        """選取圖例時畫紅色虛線框標示"""
+        # 移除舊的選取框
+        for p in getattr(self, '_legend_sel_patches', []):
+            try:
+                p.remove()
+            except Exception:
+                pass
+        self._legend_sel_patches = []
+        bb = leg.get_window_extent()
+        inv = self.fig.transFigure.inverted()
+        (x0, y0) = inv.transform((bb.x0, bb.y0))
+        (x1, y1) = inv.transform((bb.x1, bb.y1))
+        rect = plt.Rectangle((x0, y0), x1-x0, y1-y0,
+                             transform=self.fig.transFigure,
+                             fill=False, edgecolor='red', linestyle='--', lw=1.5)
+        self.fig.patches.append(rect)
+        self._legend_sel_patches.append(rect)
+        self.canvas.draw_idle()
+
+    def _legend_settings(self):
+        """雙擊圖例 → 設定視窗：外框/字體大小/字型"""
+        leg = self.ax.get_legend()
+        if leg is None: return
+        win = tk.Toplevel(self.root)
+        win.title("圖例設定")
+        win.geometry("320x220")
+        win.transient(self.root)
+        win.grab_set()
+
+        # 外框開關
+        ff = tk.Frame(win); ff.pack(fill=tk.X, padx=10, pady=6)
+        frame_var = tk.BooleanVar(value=leg.get_frame_on())
+        tk.Checkbutton(ff, text="顯示外框", variable=frame_var,
+                       command=lambda: (leg.set_frame_on(frame_var.get()),
+                                        self.canvas.draw_idle())).pack(side=tk.LEFT)
+
+        # 字體大小
+        sf = tk.Frame(win); sf.pack(fill=tk.X, padx=10, pady=6)
+        tk.Label(sf, text="字體大小:").pack(side=tk.LEFT)
+        size_var = tk.IntVar(value=int(leg.get_texts()[0].get_fontsize()) if leg.get_texts() else 10)
+        size_spin = tk.Spinbox(sf, from_=6, to=40, textvariable=size_var, width=5)
+        size_spin.pack(side=tk.LEFT)
+
+        # 字型
+        ff2 = tk.Frame(win); ff2.pack(fill=tk.X, padx=10, pady=6)
+        tk.Label(ff2, text="字型:").pack(side=tk.LEFT)
+        font_var = tk.StringVar(value=leg.get_texts()[0].get_fontname() if leg.get_texts() else 'Arial')
+        fonts = ['Arial', 'DejaVu Sans', 'Times New Roman', 'SimHei', 'Microsoft JhengHei']
+        tk.OptionMenu(ff2, font_var, *fonts).pack(side=tk.LEFT)
+
+        def apply_settings():
+            for t in leg.get_texts():
+                t.set_fontsize(size_var.get())
+                t.set_fontname(font_var.get())
+            self.canvas.draw_idle()
+            win.destroy()
+
+        bf = tk.Frame(win); bf.pack(pady=10)
+        tk.Button(bf, text="套用", command=apply_settings, width=10).pack(side=tk.LEFT, padx=5)
+        tk.Button(bf, text="取消", command=win.destroy, width=10).pack(side=tk.LEFT, padx=5)
 
     def _on_legend_drag(self, event):
         if not self.legend_dragging or event.inaxes is None: return
@@ -647,6 +740,18 @@ class PolarizationPlotterApp:
 
     def _on_legend_release(self, event):
         self.legend_dragging = False
+        # 放開滑鼠時保持選取（鍵盤微調仍可用）；點擊圖例外部取消選取
+        if self.legend_selected:
+            leg = self.ax.get_legend()
+            if leg is None or not leg.get_window_extent().contains(event.x, event.y):
+                self.legend_selected = False
+                for p in self._legend_sel_patches:
+                    try:
+                        p.remove()
+                    except Exception:
+                        pass
+                self._legend_sel_patches = []
+                self.canvas.draw_idle()
 
     # ------------------------------------------------------------------
     # 子刻度
