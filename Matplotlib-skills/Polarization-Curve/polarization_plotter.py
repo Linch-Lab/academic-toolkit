@@ -108,8 +108,9 @@ class PolarizationData:
 # 主視窗
 # ------------------------------------------------------------------
 class PolarizationPlotterApp:
-    DEFAULT_COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
-                      '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+    # Okabe-Ito 色盲友善配色（科學標準，7 色）
+    DEFAULT_COLORS = ['#0072B2', '#E69F00', '#56B4E9', '#009E73',
+                      '#F0E442', '#CC79A7', '#D55E00']
 
     def __init__(self, root):
         self.root = root
@@ -367,8 +368,17 @@ class PolarizationPlotterApp:
     # ------------------------------------------------------------------
     # 上傳
     # ------------------------------------------------------------------
+    # 自動配色/配 marker：依序循環不重複（7 色 × 10 marker = 70 組合）
+    AUTO_MARKERS = ['o', 's', '^', 'v', 'D', 'x', '+', '*', 'p', 'h']
+
     def _pick_color(self, idx):
         return self.DEFAULT_COLORS[idx % len(self.DEFAULT_COLORS)]
+
+    def _auto_style(self, idx):
+        """依序分配顏色 + marker 種類（組合不重複，直到 10×10 用完）"""
+        color = self.DEFAULT_COLORS[idx % len(self.DEFAULT_COLORS)]
+        marker = self.AUTO_MARKERS[(idx // len(self.DEFAULT_COLORS)) % len(self.AUTO_MARKERS)]
+        return color, marker
 
     def add_curve(self):
         files = filedialog.askopenfilenames(
@@ -386,9 +396,10 @@ class PolarizationPlotterApp:
                 if info is None:
                     continue
                 v_col, i_col, unit, area = info
+                color, marker = self._auto_style(len(self.curves))
                 self.curves.append(PolarizationData(
-                    name, df, v_col, i_col, self._pick_color(len(self.curves)),
-                    current_unit=unit, active_area=area))
+                    name, df, v_col, i_col, color,
+                    current_unit=unit, active_area=area, marker_style=marker))
                 self._refresh_list()
             except Exception as e:
                 messagebox.showerror("讀取失敗", f"{f}\n{e}")
@@ -868,12 +879,13 @@ class PolarizationPlotterApp:
                     p_disp = p * c.active_area
                 else:
                     p_disp = p
-                # 功率 marker：全域開關 + 該曲線種類（屬性）
+                # 功率 marker：全域開關 + 該曲線種類（屬性）——空心（mfc='none'）
                 pmk = c.power_marker_style if (self.power_marker_global.get()
                                                and c.power_marker_style != 'None') else None
                 self.ax2.plot(x_disp, p_disp, color=c.color,
                               linestyle='--', linewidth=1.2, alpha=0.7,
                               marker=pmk, markersize=self.marker_size_global.get(),
+                              mfc='none',   # 空心 marker
                               label=f"{c.name} (P)")
                 power_plotted = True
 
