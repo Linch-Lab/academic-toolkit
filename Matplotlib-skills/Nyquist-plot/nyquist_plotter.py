@@ -870,6 +870,18 @@ class NyquistPlotterApp:
         if self.curves:
             leg = self.ax.legend(loc='upper right', frameon=True,
                                  fontsize=14, prop={'family': 'Arial'})
+            # 圖例圖示 = marker + line 組合（raw 的 marker + 代表線）
+            for i, c in enumerate(self.curves):
+                try:
+                    handle = leg.legendHandles[i]
+                    handle.set_linestyle('-')
+                    handle.set_linewidth(self.line_width_global.get())
+                    marker = c.marker_style if (self.marker_global.get()
+                                                and c.marker_style != 'None') else None
+                    handle.set_marker(marker)
+                    handle.set_markersize(self.marker_size_global.get())
+                except Exception:
+                    pass
             if getattr(self, '_legend_pos_custom', False) and self._drag_anchor is not None:
                 leg.set_bbox_to_anchor(self._drag_anchor, transform=self.fig.transFigure)
             leg.set_draggable(True)
