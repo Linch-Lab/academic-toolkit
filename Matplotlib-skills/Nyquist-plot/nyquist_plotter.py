@@ -106,6 +106,7 @@ class NyquistPlotterApp:
         self._legend_sel_patches = []
         self._legend_pos_custom = False
         self._drag_anchor = None
+        self._legend_cfg = {'fontsize': 12, 'fontname': 'Arial', 'frameon': True}  # 圖例設定（存下）
         self.aspect_equal = True   # X/Y 同比例鎖定（預設開）
 
         self._build_ui()
@@ -173,12 +174,12 @@ class NyquistPlotterApp:
         tk.Checkbutton(cf2, text="marker", variable=self.marker_global,
                        command=self.redraw).pack(side=tk.LEFT)
         tk.Label(cf2, text="大小").pack(side=tk.LEFT, padx=(6, 0))
-        self.marker_size_global = tk.DoubleVar(value=7.0)
+        self.marker_size_global = tk.DoubleVar(value=4.0)   # 預設 4
         tk.Spinbox(cf2, from_=1, to=20, increment=0.5,
                    textvariable=self.marker_size_global, width=4,
                    command=self.redraw).pack(side=tk.LEFT)
         tk.Label(cf2, text="線粗").pack(side=tk.LEFT, padx=(6, 0))
-        self.line_width_global = tk.DoubleVar(value=2.0)
+        self.line_width_global = tk.DoubleVar(value=1.0)    # 預設 1
         tk.Spinbox(cf2, from_=0.5, to=5, increment=0.1,
                    textvariable=self.line_width_global, width=4,
                    command=self.redraw).pack(side=tk.LEFT)
@@ -186,7 +187,7 @@ class NyquistPlotterApp:
         cf3 = tk.Frame(ca_f)
         cf3.pack(fill=tk.X, pady=(2, 0))
         tk.Label(cf3, text="框粗").pack(side=tk.LEFT, padx=(0, 0))
-        self.spine_width_global = tk.DoubleVar(value=1.0)
+        self.spine_width_global = tk.DoubleVar(value=1.1)   # 預設 1.1
         tk.Spinbox(cf3, from_=0.5, to=5, increment=0.1,
                    textvariable=self.spine_width_global, width=4,
                    command=self.redraw).pack(side=tk.LEFT)
@@ -196,7 +197,7 @@ class NyquistPlotterApp:
                    textvariable=self.tick_width_global, width=4,
                    command=self.redraw).pack(side=tk.LEFT)
         tk.Label(cf3, text="tick長").pack(side=tk.LEFT, padx=(6, 0))
-        self.tick_len_global = tk.DoubleVar(value=1.0)
+        self.tick_len_global = tk.DoubleVar(value=1.5)      # 預設 1.5
         tk.Spinbox(cf3, from_=0.5, to=3, increment=0.5,
                    textvariable=self.tick_len_global, width=4,
                    command=self.redraw).pack(side=tk.LEFT)
@@ -680,29 +681,34 @@ class NyquistPlotterApp:
     def _legend_settings(self):
         leg = self.ax.get_legend()
         if leg is None: return
+        cfg = self._legend_cfg
         win = tk.Toplevel(self.root)
         win.title("圖例設定")
         win.geometry("320x220")
         win.transient(self.root)
         win.grab_set()
         ff = tk.Frame(win); ff.pack(fill=tk.X, padx=10, pady=6)
-        frame_var = tk.BooleanVar(value=leg.get_frame_on())
-        tk.Checkbutton(ff, text="顯示外框", variable=frame_var,
-                       command=lambda: (leg.set_frame_on(frame_var.get()),
-                                        self.canvas.draw_idle())).pack(side=tk.LEFT)
+        frame_var = tk.BooleanVar(value=cfg['frameon'])
+        tk.Checkbutton(ff, text="顯示外框", variable=frame_var).pack(side=tk.LEFT)
         sf = tk.Frame(win); sf.pack(fill=tk.X, padx=10, pady=6)
         tk.Label(sf, text="字體大小:").pack(side=tk.LEFT)
-        size_var = tk.IntVar(value=int(leg.get_texts()[0].get_fontsize()) if leg.get_texts() else 14)
+        size_var = tk.IntVar(value=cfg['fontsize'])
         tk.Spinbox(sf, from_=6, to=40, textvariable=size_var, width=5).pack(side=tk.LEFT)
         ff2 = tk.Frame(win); ff2.pack(fill=tk.X, padx=10, pady=6)
         tk.Label(ff2, text="字型:").pack(side=tk.LEFT)
-        font_var = tk.StringVar(value=leg.get_texts()[0].get_fontname() if leg.get_texts() else 'Arial')
+        font_var = tk.StringVar(value=cfg['fontname'])
         fonts = ['Arial', 'DejaVu Sans', 'Times New Roman', 'SimHei', 'Microsoft JhengHei']
         tk.OptionMenu(ff2, font_var, *fonts).pack(side=tk.LEFT)
         def apply_settings():
-            for t in leg.get_texts():
-                t.set_fontsize(size_var.get())
-                t.set_fontname(font_var.get())
+            # 存入設定（redraw 後沿用）
+            cfg['fontsize'] = size_var.get()
+            cfg['fontname'] = font_var.get()
+            cfg['frameon'] = frame_var.get()
+            if leg is not None:
+                for t in leg.get_texts():
+                    t.set_fontsize(cfg['fontsize'])
+                    t.set_fontname(cfg['fontname'])
+                leg.set_frame_on(cfg['frameon'])
             self.canvas.draw_idle()
             win.destroy()
         bf = tk.Frame(win); bf.pack(pady=10)
@@ -905,8 +911,11 @@ class NyquistPlotterApp:
 
         # 圖例
         if self.curves:
-            leg = self.ax.legend(loc='upper right', frameon=True,
-                                 fontsize=14, prop={'family': 'Arial'})
+            cfg = self._legend_cfg
+            leg = self.ax.legend(loc='upper right',
+                                 frameon=cfg['frameon'],
+                                 fontsize=cfg['fontsize'],
+                                 prop={'family': cfg['fontname']})
             # 圖例圖示 = marker + line 組合（raw 的 marker + 代表線）
             handles = getattr(leg, 'legend_handles', None) or getattr(leg, 'legendHandles', None)
             if handles:
