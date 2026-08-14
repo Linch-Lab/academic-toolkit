@@ -180,14 +180,22 @@ class PtCVPlotterApp:
         tk.Entry(r1c, textvariable=self.scan_var, width=6).pack(side=tk.LEFT)
         tk.Label(r1c, text="mV/s").pack(side=tk.LEFT)
 
-        # 電流單位
+        # 電流單位 + active area（電流密度換算用）
         r2 = row(gf)
         tk.Label(r2, text="電流單位:").pack(side=tk.LEFT)
         self.iunit_var = tk.StringVar(value="A")
         iu_om = tk.OptionMenu(r2, self.iunit_var, 'A', 'mA', 'µA',
+                              'mA/cm²', 'A/cm²',
                               command=lambda _: self.redraw())
-        iu_om.config(width=3)
+        iu_om.config(width=6)
         iu_om.pack(side=tk.LEFT)
+        tk.Label(r2, text="面積:").pack(side=tk.LEFT, padx=(6, 0))
+        self.area_var = tk.StringVar(value="1")   # active area cm²，預設 1
+        area_entry = tk.Entry(r2, textvariable=self.area_var, width=5)
+        area_entry.pack(side=tk.LEFT)
+        tk.Label(r2, text="cm²").pack(side=tk.LEFT)
+        area_entry.bind('<Return>', lambda e: self.redraw())
+        area_entry.bind('<FocusOut>', lambda e: self.redraw())
 
         # 曲線外觀（兩行）
         r3 = row(gf)
@@ -599,9 +607,24 @@ class PtCVPlotterApp:
         slope = self._nernst_slope()
         return np.asarray(V, dtype=float) + e0 + slope * ph
 
+    def _get_area(self):
+        """active area（cm²），預設 1"""
+        try:
+            return float(self.area_var.get()) if self.area_var.get() else 1.0
+        except ValueError:
+            return 1.0
+
     def _i_scale(self):
-        """電流單位縮放：內部統一 A"""
-        return self.CURRENT_UNITS.get(self.iunit_var.get(), 1.0)
+        """電流單位縮放：內部統一 A。
+        電流密度單位（mA/cm²、A/cm²）需除以 active area。
+        """
+        unit = self.iunit_var.get()
+        area = self._get_area()
+        if unit == 'mA/cm²':
+            return 1e-3 / area
+        if unit == 'A/cm²':
+            return 1.0 / area
+        return self.CURRENT_UNITS.get(unit, 1.0)
 
     # ------------------------------------------------------------------
     # 標註
