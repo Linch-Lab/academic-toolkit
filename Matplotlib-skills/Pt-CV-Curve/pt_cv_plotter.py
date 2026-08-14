@@ -984,33 +984,33 @@ class PtCVPlotterApp:
         tk.Checkbutton(ckf, text="陽極脫附 (anodic)", variable=anodic_var).pack(side=tk.LEFT, padx=(0, 12))
         tk.Checkbutton(ckf, text="陰極吸附 (cathodic)", variable=cathodic_var).pack(side=tk.LEFT)
 
-        # 陽極輸入
+        # 陽極輸入（DL 擬合區 + 積分區）
         tk.Label(win, text="─ 陽極脫附區（正掃）─", font=("Segoe UI", 9, "bold")).pack(anchor="w", padx=10, pady=(6, 0))
         af = tk.Frame(win); af.pack(fill=tk.X, padx=10)
-        tk.Label(af, text="積分區間").pack(side=tk.LEFT)
-        a_lo = tk.StringVar(value="0.05"); a_hi = tk.StringVar(value="0.4")
+        tk.Label(af, text="DL 擬合區").pack(side=tk.LEFT)
+        a_dl1 = tk.StringVar(value="0.4"); a_dl2 = tk.StringVar(value="0.6")
+        tk.Entry(af, textvariable=a_dl1, width=6).pack(side=tk.LEFT, padx=2)
+        tk.Label(af, text="~").pack(side=tk.LEFT)
+        tk.Entry(af, textvariable=a_dl2, width=6).pack(side=tk.LEFT, padx=2)
+        tk.Label(af, text="積分區").pack(side=tk.LEFT, padx=(10, 0))
+        a_lo = tk.StringVar(value="0.0"); a_hi = tk.StringVar(value="0.45")
         tk.Entry(af, textvariable=a_lo, width=6).pack(side=tk.LEFT, padx=2)
         tk.Label(af, text="~").pack(side=tk.LEFT)
         tk.Entry(af, textvariable=a_hi, width=6).pack(side=tk.LEFT, padx=2)
-        tk.Label(af, text="基準線").pack(side=tk.LEFT, padx=(10, 0))
-        a_b1 = tk.StringVar(value="0.05"); a_b2 = tk.StringVar(value="0.4")
-        tk.Entry(af, textvariable=a_b1, width=6).pack(side=tk.LEFT, padx=2)
-        tk.Label(af, text="~").pack(side=tk.LEFT)
-        tk.Entry(af, textvariable=a_b2, width=6).pack(side=tk.LEFT, padx=2)
 
-        # 陰極輸入
+        # 陰極輸入（DL 擬合區 + 積分區）
         tk.Label(win, text="─ 陰極吸附區（反掃）─", font=("Segoe UI", 9, "bold")).pack(anchor="w", padx=10, pady=(6, 0))
         kf = tk.Frame(win); kf.pack(fill=tk.X, padx=10)
-        tk.Label(kf, text="積分區間").pack(side=tk.LEFT)
-        c_lo = tk.StringVar(value="0.05"); c_hi = tk.StringVar(value="0.4")
+        tk.Label(kf, text="DL 擬合區").pack(side=tk.LEFT)
+        c_dl1 = tk.StringVar(value="0.4"); c_dl2 = tk.StringVar(value="0.6")
+        tk.Entry(kf, textvariable=c_dl1, width=6).pack(side=tk.LEFT, padx=2)
+        tk.Label(kf, text="~").pack(side=tk.LEFT)
+        tk.Entry(kf, textvariable=c_dl2, width=6).pack(side=tk.LEFT, padx=2)
+        tk.Label(kf, text="積分區").pack(side=tk.LEFT, padx=(10, 0))
+        c_lo = tk.StringVar(value="0.0"); c_hi = tk.StringVar(value="0.45")
         tk.Entry(kf, textvariable=c_lo, width=6).pack(side=tk.LEFT, padx=2)
         tk.Label(kf, text="~").pack(side=tk.LEFT)
         tk.Entry(kf, textvariable=c_hi, width=6).pack(side=tk.LEFT, padx=2)
-        tk.Label(kf, text="基準線").pack(side=tk.LEFT, padx=(10, 0))
-        c_b1 = tk.StringVar(value="0.05"); c_b2 = tk.StringVar(value="0.4")
-        tk.Entry(kf, textvariable=c_b1, width=6).pack(side=tk.LEFT, padx=2)
-        tk.Label(kf, text="~").pack(side=tk.LEFT)
-        tk.Entry(kf, textvariable=c_b2, width=6).pack(side=tk.LEFT, padx=2)
 
         # 內嵌小圖
         tk.Label(win, text="─ 積分區視覺確認 ─", font=("Segoe UI", 9, "bold")).pack(anchor="w", padx=10, pady=(6, 0))
@@ -1025,22 +1025,27 @@ class PtCVPlotterApp:
                  font=("Consolas", 9)).pack(anchor="w", padx=10, pady=4)
 
         def draw_preview():
-            """內嵌小圖：顯示曲線 + 積分區（依 RHE 換算）"""
+            """內嵌小圖：顯示曲線 + DL 擬合區 + 積分區（依 RHE 換算）"""
             ax_small.clear()
             V_disp = self._ref_conversion(Vc)
             I_disp = Ic / self._i_scale()
             ax_small.plot(V_disp, I_disp, color=c.color, lw=1.0)
-            # 標註積分區
+            # 陽極：DL 區（紅）與積分區（紅淺）
             try:
-                lo, hi = float(a_lo.get()), float(a_hi.get())
                 if anodic_var.get():
-                    ax_small.axvspan(lo, hi, color='red', alpha=0.15)
+                    dl1, dl2 = float(a_dl1.get()), float(a_dl2.get())
+                    ax_small.axvspan(dl1, dl2, color='red', alpha=0.2)
+                    lo, hi = float(a_lo.get()), float(a_hi.get())
+                    ax_small.axvspan(lo, hi, color='red', alpha=0.1)
             except ValueError:
                 pass
+            # 陰極：DL 區（藍）與積分區（藍淺）
             try:
-                lo, hi = float(c_lo.get()), float(c_hi.get())
                 if cathodic_var.get():
-                    ax_small.axvspan(lo, hi, color='blue', alpha=0.15)
+                    dl1, dl2 = float(c_dl1.get()), float(c_dl2.get())
+                    ax_small.axvspan(dl1, dl2, color='blue', alpha=0.2)
+                    lo, hi = float(c_lo.get()), float(c_hi.get())
+                    ax_small.axvspan(lo, hi, color='blue', alpha=0.1)
             except ValueError:
                 pass
             ref_txt = self.ref_var.get()
@@ -1070,8 +1075,8 @@ class PtCVPlotterApp:
             overlay = []
             # 陽極（正掃）
             if anodic_var.get():
-                r = calc_ecsa(V_f, I_f, float(a_lo.get()), float(a_hi.get()),
-                              float(a_b1.get()), float(a_b2.get()),
+                r = calc_ecsa(V_f, I_f, float(a_dl1.get()), float(a_dl2.get()),
+                              float(a_lo.get()), float(a_hi.get()),
                               scan_rate, m_pt, area_geo)
                 if r:
                     lines.append(f"陽極脫附: Q={r['charge_uC']:.1f} µC, "
@@ -1080,8 +1085,8 @@ class PtCVPlotterApp:
                     overlay.append(('anodic', r))
             # 陰極（反掃）
             if cathodic_var.get():
-                r = calc_ecsa(V_r, I_r, float(c_lo.get()), float(c_hi.get()),
-                              float(c_b1.get()), float(c_b2.get()),
+                r = calc_ecsa(V_r, I_r, float(c_dl1.get()), float(c_dl2.get()),
+                              float(c_lo.get()), float(c_hi.get()),
                               scan_rate, m_pt, area_geo)
                 if r:
                     lines.append(f"陰極吸附: Q={r['charge_uC']:.1f} µC, "

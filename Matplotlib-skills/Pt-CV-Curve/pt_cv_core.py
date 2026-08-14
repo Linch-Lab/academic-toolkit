@@ -92,59 +92,97 @@ def split_cycles(V, I, tol=0.02):
 
 
 # ------------------------------------------------------------------
-# ECSA 計算
+# ECSA 計算（參考 Pt_ECSA_calculator 方法）
 # ------------------------------------------------------------------
-def calc_ecsa(V_curve, I_curve, V_lo, V_hi, base_v1, base_v2,
+def get_linear_intersection(x1, y1, x2, y2, base_y1, base_y2):
+    """曲線線段與基準線的交點（Case B/C 穿越）"""
+    if x2 == x1:
+        return x1, y1
+    m1 = (y2 - y1) / (x2 - x1)
+    m2 = (base_y2 - base_y1) / (x2 - x1)
+    if m1 == m2:
+        return x1, y1
+    x_cross = (base_y1 - y1 + x1 * (m1 - m2)) / (m1 - m2)
+    y_cross = m1 * (x_cross - x1) + y1
+    return x_cross, y_cross
+
+
+def calculate_precise_area(V_arr, I_curve, I_base):
+    """曲線與基準線之間的精確面積（Case A/B/C）"""
+    total_area = 0.0
+    V_fill, I_fill_top, I_fill_bot = [], [], []
+    for i in range(len(V_arr) - 1):
+        x1, x2 = V_arr[i], V_arr[i+1]
+        y1, y2 = I_curve[i], I_curve[i+1]
+        b1, b2 = I_base[i], I_base[i+1]
+        diff1 = y1 - b1
+        diff2 = y2 - b2
+        if diff1 >= 0 and diff2 >= 0:   # Case A: 全在基準線上
+            width = x2 - x1
+            avg_height = (diff1 + diff2) / 2.0
+            total_area += width * avg_height
+            V_fill.extend([x1, x2])
+            I_fill_top.extend([y1, y2])
+            I_fill_bot.extend([b1, b2])
+        elif diff1 < 0 and diff2 > 0:   # Case B: 向上穿越
+            x_cross, y_cross = get_linear_intersection(x1, y1, x2, y2, b1, b2)
+            total_area += 0.5 * (x2 - x_cross) * diff2
+            V_fill.extend([x_cross, x2])
+            I_fill_top.extend([y_cross, y2])
+            I_fill_bot.extend([y_cross, b2])
+        elif diff1 > 0 and diff2 < 0:   # Case C: 向下穿越
+            x_cross, y_cross = get_linear_intersection(x1, y1, x2, y2, b1, b2)
+            total_area += 0.5 * (x_cross - x1) * diff1
+            V_fill.extend([x1, x_cross])
+            I_fill_top.extend([y1, y_cross])
+            I_fill_bot.extend([b1, y_cross])
+    return total_area, V_fill, I_fill_top, I_fill_bot
+
+
+def calc_ecsa(V_curve, I_curve, dl_start, dl_end, h_start, h_end,
               scan_rate, m_pt, area_geom=1.0, q_ref=Q_REF_PT):
-    """計算 ECSA
-    V_curve, I_curve: 該半圈的 V/I 數據（已含 RHE 換算）
-    V_lo, V_hi: 積分區間（H-UPD 區）
-    base_v1, base_v2: 雙電層基準線兩端電位
-    scan_rate: V/s
-    m_pt: mg/cm²
-    area_geom: 幾何面積 cm²（載量已含面積則 1）
-    回傳 dict(area_charge_uC, ecsa_m2g, fill_V, fill_I_top, fill_I_bot, baseline_V, baseline_I)
+    """計算 ECSA（參考 Pt_ECSA_calculator 方法）
+    V_curve, I_curve: 陽極（正掃）半圈的 V/I 數據（已含 RHE 換算）
+    dl_start, dl_end: 雙電層擬合區（基準線，線性回歸）
+    h_start, h_end: 積分區間（H-UPD 區）
+    scan_rate: V/s；m_pt: mg/cm²；area_geom: cm²
+    回傳 dict
     """
     V = np.asarray(V_curve, dtype=float)
     I = np.asarray(I_curve, dtype=float)
-    # 篩選積分區間 [V_lo, V_hi]
-    mask = (V >= V_lo) & (V <= V_hi)
-    if mask.sum() < 3:
+    if len(V) < 3:
         return None
-    Vm = V[mask]
-    Im = I[mask]
-    # 基準線：兩端點 (base_v1, I@base_v1) 與 (base_v2, I@base_v2)
-    # 在積分區間內找最接近 base_v1/base_v2 的點
-    i1 = np.argmin(np.abs(Vm - base_v1))
-    i2 = np.argmin(np.abs(Vm - base_v2))
-    if i1 == i2:
+    # 1. 雙電層區線性回歸（基準線）
+    mask_dl = (V >= dl_start) & (V <= dl_end)
+    if mask_dl.sum() < 2:
         return None
-    # 基準線斜率的線性插值（全區間）
-    base_slope = (Im[i2] - Im[i1]) / (Vm[i2] - Vm[i1]) if Vm[i2] != Vm[i1] else 0.0
-    base_intercept = Im[i1] - base_slope * Vm[i1]
-    I_base = base_slope * Vm + base_intercept
-    # 梯形積分（曲線 − 基準線）——取絕對值（方向由掃描決定）
-    charge = np.trapezoid(np.abs(Im - I_base), Vm)   # A·V = C·(V/s)... 除以掃速得 C
-    charge_coul = charge / scan_rate                  # C（電荷）
-    charge_uC = charge_coul * 1e6                      # µC
-    # ECSA：Q / (Q_ref × m_Pt) → cm² Pt → m²/g
-    # Q_ref µC/cm²；m_Pt mg/cm²
-    # ECSA_cm2 = Q_uC / Q_ref_uC_per_cm2 = cm² Pt
-    # 歸一化幾何面積：ECSA_geo = cm² Pt / cm² geo
+    slope, intercept = np.polyfit(V[mask_dl], I[mask_dl], 1)
+    # 2. 積分區
+    mask_int = (V >= h_start) & (V <= h_end)
+    if mask_int.sum() < 2:
+        return None
+    V_int = V[mask_int]
+    I_curve_int = I[mask_int]
+    I_base_int = slope * V_int + intercept
+    # 3. 精確面積
+    area_AV, V_fill, I_fill_top, I_fill_bot = calculate_precise_area(
+        V_int, I_curve_int, I_base_int)
+    # 4. 物理計算
+    charge_uC = (area_AV / scan_rate) * 1e6   # area (A·V) / (V/s) = C → µC
     ecsa_cm2 = charge_uC / q_ref
     ecsa_cm2_per_cm2 = ecsa_cm2 / area_geom if area_geom > 0 else ecsa_cm2
-    # m²/g：cm² Pt / (m_Pt mg/cm² × area_geom cm²) × (1 g/1000 mg) × (1 m²/10000 cm²)
-    m_pt_total_g = m_pt * area_geom / 1000.0          # g
-    if m_pt_total_g > 0:
-        ecsa_m2g = ecsa_cm2 / m_pt_total_g / 10000.0
-    else:
-        ecsa_m2g = 0.0
+    total_mass_g = (m_pt * area_geom) / 1000.0
+    ms_ecsa = (ecsa_cm2 / 10000.0) / total_mass_g if total_mass_g > 0 else 0.0
     return {
         'charge_uC': charge_uC,
         'charge_uC_per_cm2': charge_uC / area_geom if area_geom > 0 else charge_uC,
         'ecsa_cm2': ecsa_cm2,
         'ecsa_cm2_per_cm2': ecsa_cm2_per_cm2,
-        'ecsa_m2g': ecsa_m2g,
-        'fill_V': Vm, 'fill_I_top': Im, 'fill_I_bot': I_base,
-        'baseline_V': Vm, 'baseline_I': I_base,
+        'ecsa_m2g': ms_ecsa,
+        'baseline_slope': slope,
+        'baseline_intercept': intercept,
+        'fill_V': np.asarray(V_fill, dtype=float),
+        'fill_I_top': np.asarray(I_fill_top, dtype=float),
+        'fill_I_bot': np.asarray(I_fill_bot, dtype=float),
+        'baseline_V': V, 'baseline_I': slope * V + intercept,
     }
