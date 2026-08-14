@@ -129,7 +129,7 @@ def calculate_precise_area(V_arr, I_curve, I_base, direction='up'):
             total_area += width * avg_height
             V_fill.extend([x1, x2])
             if direction == 'down':
-                # 陰極：fill 在曲線（下方）與基準線之間——交換 top/bot
+                # 陰極：曲線在基準線下方——top=基準線、bot=曲線（保持 top>bot 數值）
                 I_fill_top.extend([b1, b2])
                 I_fill_bot.extend([y1, y2])
             else:
@@ -139,14 +139,22 @@ def calculate_precise_area(V_arr, I_curve, I_base, direction='up'):
             x_cross, y_cross = get_linear_intersection(x1, y1, x2, y2, b1, b2)
             total_area += 0.5 * abs(x2 - x_cross) * diff2
             V_fill.extend([x_cross, x2])
-            I_fill_top.extend([y_cross, y2])
-            I_fill_bot.extend([y_cross, b2])
+            if direction == 'down':
+                I_fill_top.extend([y_cross, b2])
+                I_fill_bot.extend([y_cross, y2])
+            else:
+                I_fill_top.extend([y_cross, y2])
+                I_fill_bot.extend([y_cross, b2])
         elif diff1 > 0 and diff2 < 0:   # Case C: 向下穿越
             x_cross, y_cross = get_linear_intersection(x1, y1, x2, y2, b1, b2)
             total_area += 0.5 * abs(x_cross - x1) * diff1
             V_fill.extend([x1, x_cross])
-            I_fill_top.extend([y1, y_cross])
-            I_fill_bot.extend([b1, y_cross])
+            if direction == 'down':
+                I_fill_top.extend([b1, y_cross])
+                I_fill_bot.extend([y1, y_cross])
+            else:
+                I_fill_top.extend([y1, y_cross])
+                I_fill_bot.extend([b1, y_cross])
     return total_area, V_fill, I_fill_top, I_fill_bot
 
 

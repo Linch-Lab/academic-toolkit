@@ -1015,17 +1015,41 @@ class PtCVPlotterApp:
             I_disp = Ic / self._i_scale()
             ax_small.plot(V_disp, I_disp, color=c.color, lw=1.0)
             i_scale = self._i_scale()
-            # 積分面積（若有計算結果——fill_between 直接畫在彈窗）
+            # 積分面積 + 基準線（裁剪到積分區——不超出曲線包絡）
             for kind, r in getattr(self, '_last_ecsa_parts', []):
                 try:
                     Vm = r['fill_V']
                     top = r['fill_I_top'] / i_scale
                     bot = r['fill_I_bot'] / i_scale
                     color = 'red' if kind == 'anodic' else 'blue'
-                    # fill_between 用 min/max 確保畫在曲線與基準線之間
-                    lo = np.minimum(bot, top)
-                    hi = np.maximum(bot, top)
-                    ax_small.fill_between(Vm, lo, hi, color=color, alpha=0.35)
+                    # fill：排序 + 去重 + 分段（fill_V 可能有重複/非單調）
+                    order = np.argsort(Vm)
+                    Vm_s = Vm[order]
+                    lo_s = np.minimum(bot, top)[order]
+                    hi_s = np.maximum(bot, top)[order]
+                    # 去重（保留最後）
+                    uniq, idx = np.unique(Vm_s, return_index=True)
+                    if len(uniq) > 1:
+                        Vm_s = uniq
+                        lo_s = lo_s[idx]
+                        hi_s = hi_s[idx]
+                    if len(Vm_s) > 1:
+                        gaps = np.diff(Vm_s)
+                        med_gap = np.median(gaps) if len(gaps) else 1e-9
+                        cut = np.where(gaps > max(2 * med_gap, 1e-6))[0] + 1
+                        segs = np.split(np.arange(len(Vm_s)), cut)
+                        for seg in segs:
+                            if len(seg) > 1:
+                                ax_small.fill_between(Vm_s[seg], lo_s[seg], hi_s[seg],
+                                                      color=color, alpha=0.35)
+                    else:
+                        ax_small.fill_between(Vm_s, lo_s, hi_s, color=color, alpha=0.35)
+                    # 基準線：只畫在積分區 V 範圍內（不延伸出曲線）
+                    bV = r['baseline_V']
+                    bI = r['baseline_I'] / i_scale
+                    in_int = (bV >= Vm_s.min()) & (bV <= Vm_s.max())
+                    if in_int.sum() > 1:
+                        ax_small.plot(bV[in_int], bI[in_int], '--', color=color, lw=1.0, alpha=0.8)
                 except Exception:
                     pass
             # 陽極：DL 區（紅）與積分區（紅淺）
