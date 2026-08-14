@@ -83,7 +83,6 @@ class PtCVPlotterApp:
         self._legend_pos_custom = False
         self._drag_anchor = None
         self._legend_cfg = {'fontsize': 12, 'fontname': 'Arial', 'frameon': True}
-        self._ecsa_overlay = None   # ECSA 基準線/積分區覆疊（dict 或 None）
         self._last_ecsa_parts = []  # 最近一次 ECSA 計算結果（彈窗預覽用）
         self.electrolyte = 'sat.'    # 電解質（E0 換算）
         self.ref_mode = 'vs RHE'     # vs RHE / vs 參考電極
@@ -834,22 +833,6 @@ class PtCVPlotterApp:
                          marker=marker, markersize=self.marker_size_global.get(),
                          linewidth=self.line_width_global.get())
 
-        # ECSA overlay：基準線 + 積分區（直接畫在主圖）
-        ov = self._ecsa_overlay
-        if ov is not None:
-            try:
-                i_scale = ov.get('i_scale', 1.0)
-                for kind, r in ov['parts']:
-                    Vm = r['fill_V']
-                    base = r['fill_I_bot'] / i_scale
-                    top = r['fill_I_top'] / i_scale
-                    color = 'red' if kind == 'anodic' else 'blue'
-                    self.ax.fill_between(Vm, base, top, color=color, alpha=0.25,
-                                         label=f"{kind} region")
-                    self.ax.plot(Vm, base, '--', color=color, lw=1.2)
-            except Exception:
-                pass
-
         # 標註
         for a in self.annotations:
             if a[0] == 'text':
@@ -1109,16 +1092,9 @@ class PtCVPlotterApp:
                 avg = sum(results) / len(results)
                 lines.append(f"平均 ECSA = {avg:.2f} m²/g Pt")
             result_var.set("\n".join(lines) if lines else "無有效結果")
-            # 存 overlay（主圖）與彈窗預覽
+            # 存彈窗預覽（ECSA 數據處理留在彈出視窗）
             if overlay:
                 self._last_ecsa_parts = list(overlay)
-                self._ecsa_overlay = {
-                    'name': c.name,
-                    'cycle': c.selected_cycle,
-                    'parts': overlay,
-                    'i_scale': self._i_scale(),
-                }
-                self.redraw()
                 draw_preview()
 
         bf = tk.Frame(win); bf.pack(pady=6)
