@@ -151,18 +151,6 @@ class NyquistPlotterApp:
         tk.Checkbutton(gf, text="顯示 branch（虛線）", variable=self.branch_var,
                        command=self.redraw).grid(row=0, column=1, sticky="e")
 
-        # 單位 + active area
-        tk.Label(gf, text="單位:").grid(row=0, column=2, sticky="w", padx=(10, 0))
-        self.unit_var = tk.StringVar(value="Ω")
-        tk.OptionMenu(gf, self.unit_var, 'Ω', 'mΩ', 'Ω·cm²', 'mΩ·cm²',
-                      command=lambda _: self.redraw()).grid(row=0, column=3, sticky="w")
-        tk.Label(gf, text="面積:").grid(row=0, column=4, sticky="w", padx=(10, 0))
-        self.area_var = tk.StringVar(value="1")   # 預設 1 cm²
-        area_entry = tk.Entry(gf, textvariable=self.area_var, width=5)
-        area_entry.grid(row=0, column=5, sticky="w")
-        area_entry.bind('<Return>', lambda e: self.redraw())
-        area_entry.bind('<FocusOut>', lambda e: self.redraw())
-
         # 曲線外觀（全域統一）——上下兩行放同一容器
         tk.Label(gf, text="曲線外觀:").grid(row=1, column=0, sticky="nw")
         ca_f = tk.Frame(gf)
@@ -234,6 +222,20 @@ class NyquistPlotterApp:
         self.fig_ratio_var = tk.StringVar(value="4:3")
         tk.OptionMenu(gf, self.fig_ratio_var, '4:3', '16:9', '1:1', '3:2',
                       command=lambda _: self.redraw()).grid(row=4, column=1, sticky="ew")
+
+        # 單位 + active area（獨立一行）
+        tk.Label(gf, text="單位:").grid(row=5, column=0, sticky="w")
+        uf = tk.Frame(gf)
+        uf.grid(row=5, column=1, sticky="ew")
+        self.unit_var = tk.StringVar(value="Ω")
+        tk.OptionMenu(uf, self.unit_var, 'Ω', 'mΩ', 'Ω·cm²', 'mΩ·cm²',
+                      command=lambda _: self.redraw()).pack(side=tk.LEFT)
+        tk.Label(uf, text="面積:").pack(side=tk.LEFT, padx=(8, 0))
+        self.area_var = tk.StringVar(value="1")   # 預設 1 cm²
+        area_entry = tk.Entry(uf, textvariable=self.area_var, width=5)
+        area_entry.pack(side=tk.LEFT)
+        area_entry.bind('<Return>', lambda e: self.redraw())
+        area_entry.bind('<FocusOut>', lambda e: self.redraw())
 
         # ===== 軸設定 =====
         tk.Label(left, text="軸設定（空=自動）", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(6, 2))
