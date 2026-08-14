@@ -83,6 +83,7 @@ class PtCVPlotterApp:
         self._legend_pos_custom = False
         self._drag_anchor = None
         self._legend_cfg = {'fontsize': 12, 'fontname': 'Arial', 'frameon': True}
+        self._ecsa_overlay = None   # ECSA 基準線/積分區覆疊（dict 或 None）
         self.electrolyte = 'sat.'    # 電解質（E0 換算）
         self.ref_mode = 'vs RHE'     # vs RHE / vs 參考電極
 
@@ -167,7 +168,7 @@ class PtCVPlotterApp:
         r1b = row(gf)
         tk.Label(r1b, text="顯示參考:").pack(side=tk.LEFT)
         self.ref_var = tk.StringVar(value="vs RHE")
-        ref_om = tk.OptionMenu(r1b, self.ref_var, 'vs RHE', '原始',
+        ref_om = tk.OptionMenu(r1b, self.ref_var, 'vs RHE', 'Raw',
                                command=lambda _: self.redraw())
         ref_om.config(width=8)
         ref_om.pack(side=tk.LEFT)
@@ -589,9 +590,9 @@ class PtCVPlotterApp:
     def _ref_conversion(self, V):
         """電位換算：
         顯示 vs RHE：E_RHE = E_raw + E0_electrode + slope×pH
-        顯示 原始：不換算
+        顯示 Raw：不換算
         """
-        if self.ref_var.get() == '原始':
+        if self.ref_var.get() == 'Raw':
             return np.asarray(V, dtype=float)
         e0 = self._get_elec_e0()
         ph = self._get_ph()
@@ -832,6 +833,22 @@ class PtCVPlotterApp:
                          marker=marker, markersize=self.marker_size_global.get(),
                          linewidth=self.line_width_global.get())
 
+        # ECSA overlay：基準線 + 積分區（直接畫在主圖）
+        ov = self._ecsa_overlay
+        if ov is not None:
+            try:
+                i_scale = ov.get('i_scale', 1.0)
+                for kind, r in ov['parts']:
+                    Vm = r['fill_V']
+                    base = r['fill_I_bot'] / i_scale
+                    top = r['fill_I_top'] / i_scale
+                    color = 'red' if kind == 'anodic' else 'blue'
+                    self.ax.fill_between(Vm, base, top, color=color, alpha=0.25,
+                                         label=f"{kind} region")
+                    self.ax.plot(Vm, base, '--', color=color, lw=1.2)
+            except Exception:
+                pass
+
         # 標註
         for a in self.annotations:
             if a[0] == 'text':
@@ -943,7 +960,7 @@ class PtCVPlotterApp:
 
         win = tk.Toplevel(self.root)
         win.title(f"ECSA 計算 — {c.name}")
-        win.geometry("520x640")
+        win.geometry("560x720")
         win.transient(self.root)
         win.grab_set()
 
@@ -997,7 +1014,7 @@ class PtCVPlotterApp:
 
         # 內嵌小圖
         tk.Label(win, text="─ 積分區視覺確認 ─", font=("Segoe UI", 9, "bold")).pack(anchor="w", padx=10, pady=(6, 0))
-        fig_small = plt.Figure(figsize=(5, 2.2), dpi=90)
+        fig_small = plt.Figure(figsize=(5.5, 3.2), dpi=90)
         ax_small = fig_small.add_subplot(111)
         canvas_small = FigureCanvasTkAgg(fig_small, master=win)
         canvas_small.get_tk_widget().pack(padx=10, pady=4)
@@ -1050,6 +1067,7 @@ class PtCVPlotterApp:
 
             lines = []
             results = []
+            overlay = []
             # 陽極（正掃）
             if anodic_var.get():
                 r = calc_ecsa(V_f, I_f, float(a_lo.get()), float(a_hi.get()),
@@ -1059,6 +1077,7 @@ class PtCVPlotterApp:
                     lines.append(f"陽極脫附: Q={r['charge_uC']:.1f} µC, "
                                  f"ECSA={r['ecsa_m2g']:.2f} m²/g")
                     results.append(r['ecsa_m2g'])
+                    overlay.append(('anodic', r))
             # 陰極（反掃）
             if cathodic_var.get():
                 r = calc_ecsa(V_r, I_r, float(c_lo.get()), float(c_hi.get()),
@@ -1068,10 +1087,20 @@ class PtCVPlotterApp:
                     lines.append(f"陰極吸附: Q={r['charge_uC']:.1f} µC, "
                                  f"ECSA={r['ecsa_m2g']:.2f} m²/g")
                     results.append(r['ecsa_m2g'])
+                    overlay.append(('cathodic', r))
             if results:
                 avg = sum(results) / len(results)
                 lines.append(f"平均 ECSA = {avg:.2f} m²/g Pt")
             result_var.set("\n".join(lines) if lines else "無有效結果")
+            # 存 overlay 並重繪主圖（基準線 + 積分區直接畫在主圖）
+            if overlay:
+                self._ecsa_overlay = {
+                    'name': c.name,
+                    'cycle': c.selected_cycle,
+                    'parts': overlay,
+                    'i_scale': self._i_scale(),
+                }
+                self.redraw()
 
         bf = tk.Frame(win); bf.pack(pady=6)
         tk.Button(bf, text="預覽積分區", command=draw_preview, width=12).pack(side=tk.LEFT, padx=4)
