@@ -34,7 +34,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 class NyquistData:
     """一組 EIS 數據（raw + fitted 兩條曲線）"""
     def __init__(self, name, df, z_col, zpp_col,
-                 color, has_fitted=False,
+                 color, has_fitted=False, branches=None,
                  marker_on=True, marker_style='o', marker_size=7,
                  line_style='-', line_width=2.0,
                  fitted_marker_style='o', fitted_line_style='-'):
@@ -44,6 +44,7 @@ class NyquistData:
         self.zpp_col = zpp_col       # Z'' 欄位
         self.color = color
         self.has_fitted = has_fitted  # 是否有 fitted 數據
+        self.branches = branches if branches else []  # [(z', zpp'), ...]
         self.marker_on = marker_on    # raw 用 marker（預設開）
         self.marker_style = marker_style
         self.marker_size = marker_size
@@ -144,6 +145,10 @@ class NyquistPlotterApp:
         self.aspect_var = tk.BooleanVar(value=True)
         tk.Checkbutton(gf, text="(Nyquist 慣例)", variable=self.aspect_var,
                        command=self.redraw).grid(row=0, column=1, sticky="w")
+        # 顯示 branch（虛線）
+        self.branch_var = tk.BooleanVar(value=False)
+        tk.Checkbutton(gf, text="顯示 branch（虛線）", variable=self.branch_var,
+                       command=self.redraw).grid(row=0, column=1, sticky="e")
 
         # 曲線外觀（全域統一）——上下兩行放同一容器
         tk.Label(gf, text="曲線外觀:").grid(row=1, column=0, sticky="nw")
@@ -344,7 +349,13 @@ class NyquistPlotterApp:
         df.columns = [c.split('(')[0].strip().replace(' ', '_') for c in df.columns]
         # 確認必要欄位
         has_fitted = 'Total_Fitted_Z_prime' in df.columns
-        return df, has_fitted
+        # 收集 branch 欄位（Branch_N_Z_prime / Branch_N_Z_double_prime）
+        branches = []
+        i = 1
+        while f'Branch_{i}_Z_prime' in df.columns:
+            branches.append((f'Branch_{i}_Z_prime', f'Branch_{i}_Z_double_prime'))
+            i += 1
+        return df, has_fitted, branches
 
     # ------------------------------------------------------------------
     # 上傳
@@ -363,12 +374,13 @@ class NyquistPlotterApp:
                 parsed = self.parse_drtxecm_csv(f)
                 name = os.path.splitext(os.path.basename(f))[0]
                 if parsed is not None:
-                    df, has_fitted = parsed
+                    df, has_fitted, branches = parsed
                     z_col = 'Z_raw_prime' if 'Z_raw_prime' in df.columns else df.columns[1]
                     zpp_col = 'Z_raw_double_prime' if 'Z_raw_double_prime' in df.columns else df.columns[2]
                     color, marker = self._auto_style(len(self.curves))
                     c = NyquistData(name, df, z_col, zpp_col, color,
-                                    has_fitted=has_fitted, marker_style=marker)
+                                    has_fitted=has_fitted, branches=branches,
+                                    marker_style=marker)
                     # fitted 欄位名稱
                     if has_fitted:
                         c.df['fitted_z_prime'] = df['Total_Fitted_Z_prime'].astype(float)
@@ -774,6 +786,15 @@ class NyquistPlotterApp:
                 self.ax.plot(fz, fneg, label=f"{c.name} (fit)",
                              color=c.color, linestyle=c.fitted_line_style,
                              linewidth=self.line_width_global.get(), alpha=0.8)
+            # branch：同色虛線（可勾選）
+            if self.branch_var.get() and c.branches:
+                for bi, (bz_col, bzpp_col) in enumerate(c.branches):
+                    bz = c.df[bz_col].astype(float).values
+                    bzpp = c.df[bzpp_col].astype(float).values
+                    self.ax.plot(bz, c._nyquist_y(bzpp),
+                                 label=f"{c.name} (B{bi+1})",
+                                 color=c.color, linestyle='--',
+                                 linewidth=1.0, alpha=0.6)
 
         # 標註
         for a in self.annotations:
