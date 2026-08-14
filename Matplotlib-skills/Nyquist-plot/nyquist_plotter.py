@@ -770,29 +770,29 @@ class NyquistPlotterApp:
         for sp in self.ax.spines.values():
             sp.set_linewidth(spine_lw)
 
-        # 繪製各數據
+        # 繪製各數據（圖例合併：同組只顯示一個標籤）
         for c in self.curves:
             z, neg_zpp = c.get_raw_xy()
-            # raw：預設純 marker（無線）
+            # raw：預設純 marker（無線）——主標籤
             marker = c.marker_style if (self.marker_global.get()
                                         and c.marker_style != 'None') else None
-            self.ax.plot(z, neg_zpp, label=f"{c.name} (raw)",
+            self.ax.plot(z, neg_zpp, label=c.name,
                          color=c.color, linestyle='None',
                          marker=marker, markersize=self.marker_size_global.get(),
                          linewidth=self.line_width_global.get())
-            # fitted：預設純實線（無 marker）
+            # fitted：純實線（無 marker，不進圖例）
             if c.has_fitted:
                 fz, fneg = c.get_fitted_xy()
-                self.ax.plot(fz, fneg, label=f"{c.name} (fit)",
+                self.ax.plot(fz, fneg, label='_nolegend_',
                              color=c.color, linestyle=c.fitted_line_style,
                              linewidth=self.line_width_global.get(), alpha=0.8)
-            # branch：同色虛線（可勾選）
+            # branch：同色虛線（可勾選，不進圖例）
             if self.branch_var.get() and c.branches:
                 for bi, (bz_col, bzpp_col) in enumerate(c.branches):
                     bz = c.df[bz_col].astype(float).values
                     bzpp = c.df[bzpp_col].astype(float).values
                     self.ax.plot(bz, c._nyquist_y(bzpp),
-                                 label=f"{c.name} (B{bi+1})",
+                                 label='_nolegend_',
                                  color=c.color, linestyle='--',
                                  linewidth=1.0, alpha=0.6)
 
