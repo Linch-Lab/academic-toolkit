@@ -48,7 +48,8 @@ E0_REF_DICT = {          # 電解質 → RHE 參考電位 (V)
 # ------------------------------------------------------------------
 def split_cycles(V, I, tol=0.02):
     """依 V 極值切分多圈 CV 封閉曲線
-    邏輯：追蹤 V 的極值（局部最大/最小），完成 V_max→V_min→V_max = 一圈
+    以數據表第一點為起點：每圈 = 完整循環（起點 → V 往返 → 回到起點電位）
+    圈邊界：V 極值（局部最大/最小）——每 2 個極值 = 1 圈
     回傳 list of (V_arr, I_arr)
     """
     V = np.asarray(V, dtype=float)
@@ -70,20 +71,19 @@ def split_cycles(V, I, tol=0.02):
     if len(extrema) < 2:
         # 無法切分——整段當一圈
         return [(V, I)]
-    # 每個極值對（V_max→V_min 或 V_min→V_max）為半圈；兩對 = 一圈
-    # 找第一個 V_max（局部極大）作圈起點——從所有極值搜尋（含第 0 個）
-    start = 0
-    for i in range(len(extrema)):
-        prev_v = V[extrema[i-1]] if i > 0 else -np.inf
-        next_v = V[extrema[i+1]] if i < len(extrema)-1 else -np.inf
-        if V[extrema[i]] > prev_v and V[extrema[i]] > next_v:
-            start = i
-            break
-    # 圈切分：idxs = [起點] + 全部極值 + [數據尾]，每 2 個極值區間成圈
-    # 起點前的半圈（數據起點到第一個極值）併入第一圈
-    idxs = [0] + extrema + [len(V) - 1]
-    for k in range(0, len(idxs) - 2, 2):
-        s, e = idxs[k], idxs[k+2]
+    # 分類極值：V_max（局部極大）與 V_min（局部極小）
+    # 每個極值與前一個比較（第一個與 V[0] 比較）
+    types = []
+    for i, e in enumerate(extrema):
+        prev_v = V[extrema[i-1]] if i > 0 else V[0]
+        types.append('max' if V[e] > prev_v else 'min')
+
+    # 半圈切割：起點 + 極值交替 = 半圈邊界
+    # 每 2 個半圈 = 1 圈（完整往返）；起點/尾端殘段併入相鄰圈
+    segs = [0] + extrema + [len(V) - 1]
+    # 合併：每對相鄰半圈成圈（segs[k] → segs[k+2]）
+    for k in range(0, len(segs) - 2, 2):
+        s, e = segs[k], segs[k+2]
         if e - s > 3:
             cycles.append((V[s:e+1], I[s:e+1]))
     if not cycles:
