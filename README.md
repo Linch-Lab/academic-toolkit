@@ -14,6 +14,7 @@
 | **XRD Plotter** | XRD 數據繪圖 GUI（Tkinter）——實驗數據 + PDF 資料庫譜線對照，互動式微調與標註 | [`Matplotlib-skills/XRD/`](Matplotlib-skills/XRD/) |
 | **Polarization Curve Plotter** | 極化曲線繪圖 GUI——FC/EC I-V 曲線、active area 換算、雙 Y 軸功率、單位切換 | [`Matplotlib-skills/Polarization-Curve/`](Matplotlib-skills/Polarization-Curve/) |
 | **Nyquist Plotter** | EIS Nyquist 圖繪圖 GUI——解析 DRTxECM 匯出 CSV、raw marker / fitted 實線、X/Y 同比例鎖定 | [`Matplotlib-skills/Nyquist-plot/`](Matplotlib-skills/Nyquist-plot/) |
+| **Pt CV Curve Plotter** | CV 曲線繪圖 + ECSA 計算 GUI——多圈自動切分、RHE 換算、陰/陽極吸附面積分 | [`Matplotlib-skills/Pt-CV-Curve/`](Matplotlib-skills/Pt-CV-Curve/) |
 
 ## 🚀 快速開始
 
