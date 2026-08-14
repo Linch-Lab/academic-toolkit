@@ -986,7 +986,7 @@ class PtCVPlotterApp:
         tk.Label(win, text="─ 陰極吸附區（反掃）─", font=("Segoe UI", 9, "bold")).pack(anchor="w", padx=10, pady=(6, 0))
         kf = tk.Frame(win); kf.pack(fill=tk.X, padx=10)
         tk.Label(kf, text="DL 擬合區").pack(side=tk.LEFT)
-        c_dl1 = tk.StringVar(value="0.4"); c_dl2 = tk.StringVar(value="0.6")
+        c_dl1 = tk.StringVar(value="0.4"); c_dl2 = tk.StringVar(value="0.7")
         tk.Entry(kf, textvariable=c_dl1, width=6).pack(side=tk.LEFT, padx=2)
         tk.Label(kf, text="~").pack(side=tk.LEFT)
         tk.Entry(kf, textvariable=c_dl2, width=6).pack(side=tk.LEFT, padx=2)

@@ -164,6 +164,17 @@ def calc_ecsa(V_curve, I_curve, dl_start, dl_end, h_start, h_end,
     if mask_dl.sum() < 2:
         return None
     slope, intercept = np.polyfit(V[mask_dl], I[mask_dl], 1)
+    if direction == 'down':
+        # 陰極：基準線 = 與陽極平行（同 slope），穿過陰極 DL 區最高點
+        # 陰極反掃（V 遞減），DL 區為 0.4~0.7V；找該區最高點
+        mask_cat = (V >= dl_start) & (V <= dl_end)
+        if mask_cat.sum() > 0:
+            max_idx = np.argmax(I[mask_cat])
+            V_max_cat = V[mask_cat][max_idx]
+            I_max_cat = I[mask_cat][max_idx]
+            intercept = I_max_cat - slope * V_max_cat   # 平行線截距
+        else:
+            return None
     # 2. 積分區
     mask_int = (V >= h_start) & (V <= h_end)
     if mask_int.sum() < 2:
