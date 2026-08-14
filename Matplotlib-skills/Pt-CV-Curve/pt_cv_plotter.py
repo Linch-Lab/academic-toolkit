@@ -26,7 +26,7 @@ import numpy as np
 import pandas as pd
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 
-from pt_cv_core import split_cycles, calc_ecsa, E0_REF_DICT, Q_REF_PT
+from pt_cv_core import split_cycles, calc_ecsa, Q_REF_PT
 
 # ------------------------------------------------------------------
 # 數據類
@@ -132,27 +132,52 @@ class PtCVPlotterApp:
             f.pack(fill=tk.X, pady=1)
             return f
 
-        # 電位參考 + 電解質
+        # 電位換算區（參考電極 / KCl 濃度 / pH / 溫度 / 顯示參考）
         r0 = row(gf)
-        tk.Label(r0, text="電位參考:").pack(side=tk.LEFT)
+        tk.Label(r0, text="參考電極:").pack(side=tk.LEFT)
+        self.elec_var = tk.StringVar(value="Ag/AgCl")
+        elec_om = tk.OptionMenu(r0, self.elec_var,
+                                'vs RHE', 'vs SHE', 'SCE',
+                                'Ag/AgCl', 'Hg/HgO',
+                                command=lambda _: self.redraw())
+        elec_om.config(width=8)
+        elec_om.pack(side=tk.LEFT)
+
+        # KCl 濃度（僅 Ag/AgCl 有效）
+        r0b = row(gf)
+        tk.Label(r0b, text="KCl 濃度:").pack(side=tk.LEFT)
+        self.kcl_var = tk.StringVar(value="sat.")
+        kcl_om = tk.OptionMenu(r0b, self.kcl_var, 'sat.', '3.5M', '3M', '1M',
+                               command=lambda _: self.redraw())
+        kcl_om.config(width=4)
+        kcl_om.pack(side=tk.LEFT)
+        tk.Label(r0b, text="(Ag/AgCl)").pack(side=tk.LEFT, padx=(4, 0))
+
+        # pH + 溫度
+        r1 = row(gf)
+        tk.Label(r1, text="pH:").pack(side=tk.LEFT)
+        self.ph_var = tk.StringVar(value="0")
+        tk.Entry(r1, textvariable=self.ph_var, width=5).pack(side=tk.LEFT)
+        tk.Label(r1, text="溫度:").pack(side=tk.LEFT, padx=(8, 0))
+        self.temp_var = tk.StringVar(value="25")
+        tk.Entry(r1, textvariable=self.temp_var, width=5).pack(side=tk.LEFT)
+        tk.Label(r1, text="°C").pack(side=tk.LEFT)
+
+        # 顯示參考
+        r1b = row(gf)
+        tk.Label(r1b, text="顯示參考:").pack(side=tk.LEFT)
         self.ref_var = tk.StringVar(value="vs RHE")
-        ref_om = tk.OptionMenu(r0, self.ref_var, 'vs RHE', 'vs 參考電極',
+        ref_om = tk.OptionMenu(r1b, self.ref_var, 'vs RHE', '原始',
                                command=lambda _: self.redraw())
         ref_om.config(width=8)
         ref_om.pack(side=tk.LEFT)
-        tk.Label(r0, text="電解質:").pack(side=tk.LEFT, padx=(8, 0))
-        self.elec_var = tk.StringVar(value="sat.")
-        elec_om = tk.OptionMenu(r0, self.elec_var, *list(E0_REF_DICT.keys()),
-                                command=lambda _: self.redraw())
-        elec_om.config(width=4)
-        elec_om.pack(side=tk.LEFT)
 
         # 掃速
-        r1 = row(gf)
-        tk.Label(r1, text="掃速:").pack(side=tk.LEFT)
+        r1c = row(gf)
+        tk.Label(r1c, text="掃速:").pack(side=tk.LEFT)
         self.scan_var = tk.StringVar(value="50")
-        tk.Entry(r1, textvariable=self.scan_var, width=6).pack(side=tk.LEFT)
-        tk.Label(r1, text="mV/s").pack(side=tk.LEFT)
+        tk.Entry(r1c, textvariable=self.scan_var, width=6).pack(side=tk.LEFT)
+        tk.Label(r1c, text="mV/s").pack(side=tk.LEFT)
 
         # 電流單位
         r2 = row(gf)
@@ -522,21 +547,56 @@ class PtCVPlotterApp:
             pass
         self.redraw()
 
-    def _get_e0(self):
-        """目前電解質的 RHE 參考電位"""
+    # 參考電極 E0 表（vs SHE）
+    ELEC_E0 = {
+        'vs RHE': 0.0,
+        'vs SHE': 0.0,
+        'SCE': 0.241,
+        'Ag/AgCl': None,   # 依 KCl 濃度
+        'Hg/HgO': 0.098,
+    }
+    KCL_E0 = {   # Ag/AgCl 依 KCl 濃度 (vs SHE)
+        'sat.': 0.197,
+        '3.5M': 0.205,
+        '3M': 0.210,
+        '1M': 0.235,
+    }
+
+    def _get_elec_e0(self):
+        """參考電極 E0（vs SHE，V）"""
+        elec = self.elec_var.get()
+        if elec == 'Ag/AgCl':
+            return self.KCL_E0.get(self.kcl_var.get(), 0.197)
+        return self.ELEC_E0.get(elec, 0.0)
+
+    def _get_ph(self):
         try:
-            return E0_REF_DICT.get(self.elec_var.get(), 0.0)
-        except Exception:
+            return float(self.ph_var.get()) if self.ph_var.get() else 0.0
+        except ValueError:
             return 0.0
 
+    def _get_temp(self):
+        try:
+            return float(self.temp_var.get()) if self.temp_var.get() else 25.0
+        except ValueError:
+            return 25.0
+
+    def _nernst_slope(self):
+        """Nernst 溫度修正斜率：0.05916 V/dec at 25°C → ×T/298.15"""
+        T = self._get_temp() + 273.15
+        return 0.05916 * T / 298.15
+
     def _ref_conversion(self, V):
-        """依電位參考模式換算：
-        vs RHE：不變（數據已是 RHE）
-        vs 參考電極：V_RHE = V_ref + E0
+        """電位換算：
+        顯示 vs RHE：E_RHE = E_raw + E0_electrode + slope×pH
+        顯示 原始：不換算
         """
-        if self.ref_var.get() == 'vs 參考電極':
-            return V + self._get_e0()
-        return V
+        if self.ref_var.get() == '原始':
+            return np.asarray(V, dtype=float)
+        e0 = self._get_elec_e0()
+        ph = self._get_ph()
+        slope = self._nernst_slope()
+        return np.asarray(V, dtype=float) + e0 + slope * ph
 
     def _i_scale(self):
         """電流單位縮放：內部統一 A"""
@@ -759,13 +819,11 @@ class PtCVPlotterApp:
             sp.set_linewidth(spine_lw)
 
         # RHE 換算 + 電流單位
-        e0 = self._get_e0()
-        to_rhe = (self.ref_var.get() == 'vs 參考電極')
         i_scale = self._i_scale()
 
         for c in self.curves:
             Vc, Ic = c.get_cycle()
-            V_disp = Vc + e0 if to_rhe else Vc
+            V_disp = self._ref_conversion(Vc)
             I_disp = Ic / i_scale    # 內部 A → 顯示單位（A/mA/µA）
             marker = c.marker_style if (self.marker_global.get()
                                         and c.marker_style != 'None') else None
@@ -952,9 +1010,7 @@ class PtCVPlotterApp:
         def draw_preview():
             """內嵌小圖：顯示曲線 + 積分區（依 RHE 換算）"""
             ax_small.clear()
-            e0 = self._get_e0()
-            to_rhe = (self.ref_var.get() == 'vs 參考電極')
-            V_disp = Vc + e0 if to_rhe else Vc
+            V_disp = self._ref_conversion(Vc)
             I_disp = Ic / self._i_scale()
             ax_small.plot(V_disp, I_disp, color=c.color, lw=1.0)
             # 標註積分區
@@ -985,12 +1041,11 @@ class PtCVPlotterApp:
             except ValueError:
                 messagebox.showerror("錯誤", "掃速/載量/面積需為數字")
                 return
-            e0 = self._get_e0()
-            to_rhe = (self.ref_var.get() == 'vs 參考電極')
-            # 正掃/反掃數據（RHE 換算後）
-            V_f = Vc[fwd_mask] + (e0 if to_rhe else 0.0)
+            # 正掃/反掃數據（RHE 換算後——與圖顯示一致）
+            V_all_conv = self._ref_conversion(Vc)
+            V_f = V_all_conv[fwd_mask]
             I_f = Ic[fwd_mask]
-            V_r = Vc[rev_mask] + (e0 if to_rhe else 0.0)
+            V_r = V_all_conv[rev_mask]
             I_r = Ic[rev_mask]
 
             lines = []
