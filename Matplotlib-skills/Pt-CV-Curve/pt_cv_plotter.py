@@ -82,7 +82,7 @@ class PtCVPlotterApp:
         self._legend_sel_patches = []
         self._legend_pos_custom = False
         self._drag_anchor = None
-        self._legend_cfg = {'fontsize': 12, 'fontname': 'Arial', 'frameon': True}
+        self._legend_cfg = {'fontsize': 12, 'fontname': 'Arial', 'frameon': False}
         self._last_ecsa_parts = []  # 最近一次 ECSA 計算結果（彈窗預覽用）
         self.electrolyte = 'sat.'    # 電解質（E0 換算）
         self.ref_mode = 'vs RHE'     # vs RHE / vs 參考電極
@@ -871,7 +871,10 @@ class PtCVPlotterApp:
         ref_txt = self.ref_var.get()
         self.ax.set_xlabel(f"Potential ({ref_txt})", fontsize=self.title_size, fontweight=fw, fontname=self.font_name)
         iunit = self.iunit_var.get()
-        self.ax.set_ylabel(f"Current ({iunit})", fontsize=self.title_size, fontweight=fw, fontname=self.font_name)
+        # 電流密度單位 → 標題顯示 Current density
+        is_density = iunit in ('mA/cm²', 'A/cm²')
+        ylabel = f"Current density ({iunit})" if is_density else f"Current ({iunit})"
+        self.ax.set_ylabel(ylabel, fontsize=self.title_size, fontweight=fw, fontname=self.font_name)
         self.ax.tick_params(labelsize=self.tick_size)
         xdir = 'in' if self.xdir_var.get() == '內' else 'out'
         ydir = 'in' if self.ydir_var.get() == '內' else 'out'
@@ -925,7 +928,8 @@ class PtCVPlotterApp:
             leg = self.ax.legend(loc='upper right',
                                  frameon=cfg['frameon'],
                                  fontsize=cfg['fontsize'],
-                                 prop={'family': cfg['fontname']})
+                                 prop={'family': cfg['fontname'],
+                                       'size': cfg['fontsize']})
             handles = getattr(leg, 'legend_handles', None) or getattr(leg, 'legendHandles', None)
             if handles:
                 for i, c in enumerate(self.curves):
