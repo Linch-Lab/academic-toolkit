@@ -84,6 +84,7 @@ class PtCVPlotterApp:
         self._drag_anchor = None
         self._legend_cfg = {'fontsize': 12, 'fontname': 'Arial', 'frameon': True}
         self._ecsa_overlay = None   # ECSA 基準線/積分區覆疊（dict 或 None）
+        self._last_ecsa_parts = []  # 最近一次 ECSA 計算結果（彈窗預覽用）
         self.electrolyte = 'sat.'    # 電解質（E0 換算）
         self.ref_mode = 'vs RHE'     # vs RHE / vs 參考電極
 
@@ -1025,11 +1026,22 @@ class PtCVPlotterApp:
                  font=("Consolas", 9)).pack(anchor="w", padx=10, pady=4)
 
         def draw_preview():
-            """內嵌小圖：顯示曲線 + DL 擬合區 + 積分區（依 RHE 換算）"""
+            """內嵌小圖：顯示曲線 + DL 擬合區 + 積分區 + 積分面積（依 RHE 換算）"""
             ax_small.clear()
             V_disp = self._ref_conversion(Vc)
             I_disp = Ic / self._i_scale()
             ax_small.plot(V_disp, I_disp, color=c.color, lw=1.0)
+            i_scale = self._i_scale()
+            # 積分面積（若有計算結果——fill_between 直接畫在彈窗）
+            for kind, r in getattr(self, '_last_ecsa_parts', []):
+                try:
+                    Vm = r['fill_V']
+                    top = r['fill_I_top'] / i_scale
+                    bot = r['fill_I_bot'] / i_scale
+                    color = 'red' if kind == 'anodic' else 'blue'
+                    ax_small.fill_between(Vm, bot, top, color=color, alpha=0.35)
+                except Exception:
+                    pass
             # 陽極：DL 區（紅）與積分區（紅淺）
             try:
                 if anodic_var.get():
@@ -1083,11 +1095,11 @@ class PtCVPlotterApp:
                                  f"ECSA={r['ecsa_m2g']:.2f} m²/g")
                     results.append(r['ecsa_m2g'])
                     overlay.append(('anodic', r))
-            # 陰極（反掃）
+            # 陰極（反掃）——下方區域，direction='down'
             if cathodic_var.get():
                 r = calc_ecsa(V_r, I_r, float(c_dl1.get()), float(c_dl2.get()),
                               float(c_lo.get()), float(c_hi.get()),
-                              scan_rate, m_pt, area_geo)
+                              scan_rate, m_pt, area_geo, direction='down')
                 if r:
                     lines.append(f"陰極吸附: Q={r['charge_uC']:.1f} µC, "
                                  f"ECSA={r['ecsa_m2g']:.2f} m²/g")
@@ -1097,8 +1109,9 @@ class PtCVPlotterApp:
                 avg = sum(results) / len(results)
                 lines.append(f"平均 ECSA = {avg:.2f} m²/g Pt")
             result_var.set("\n".join(lines) if lines else "無有效結果")
-            # 存 overlay 並重繪主圖（基準線 + 積分區直接畫在主圖）
+            # 存 overlay（主圖）與彈窗預覽
             if overlay:
+                self._last_ecsa_parts = list(overlay)
                 self._ecsa_overlay = {
                     'name': c.name,
                     'cycle': c.selected_cycle,
@@ -1106,6 +1119,7 @@ class PtCVPlotterApp:
                     'i_scale': self._i_scale(),
                 }
                 self.redraw()
+                draw_preview()
 
         bf = tk.Frame(win); bf.pack(pady=6)
         tk.Button(bf, text="預覽積分區", command=draw_preview, width=12).pack(side=tk.LEFT, padx=4)

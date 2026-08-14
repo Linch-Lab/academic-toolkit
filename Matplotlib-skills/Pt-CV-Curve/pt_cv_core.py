@@ -107,8 +107,11 @@ def get_linear_intersection(x1, y1, x2, y2, base_y1, base_y2):
     return x_cross, y_cross
 
 
-def calculate_precise_area(V_arr, I_curve, I_base):
-    """曲線與基準線之間的精確面積（Case A/B/C）"""
+def calculate_precise_area(V_arr, I_curve, I_base, direction='up'):
+    """曲線與基準線之間的精確面積（Case A/B/C）
+    direction='up'：積分曲線在基準線上方（陽極脫附，diff>0）
+    direction='down'：積分曲線在基準線下方（陰極吸附，diff<0）
+    """
     total_area = 0.0
     V_fill, I_fill_top, I_fill_bot = [], [], []
     for i in range(len(V_arr) - 1):
@@ -117,8 +120,11 @@ def calculate_precise_area(V_arr, I_curve, I_base):
         b1, b2 = I_base[i], I_base[i+1]
         diff1 = y1 - b1
         diff2 = y2 - b2
+        if direction == 'down':
+            # 陰極：取負 diff（曲線在基準線下方）
+            diff1, diff2 = -diff1, -diff2
         if diff1 >= 0 and diff2 >= 0:   # Case A: 全在基準線上
-            width = x2 - x1
+            width = abs(x2 - x1)          # 支援 V 遞減（陰極反掃）
             avg_height = (diff1 + diff2) / 2.0
             total_area += width * avg_height
             V_fill.extend([x1, x2])
@@ -126,13 +132,13 @@ def calculate_precise_area(V_arr, I_curve, I_base):
             I_fill_bot.extend([b1, b2])
         elif diff1 < 0 and diff2 > 0:   # Case B: 向上穿越
             x_cross, y_cross = get_linear_intersection(x1, y1, x2, y2, b1, b2)
-            total_area += 0.5 * (x2 - x_cross) * diff2
+            total_area += 0.5 * abs(x2 - x_cross) * diff2
             V_fill.extend([x_cross, x2])
             I_fill_top.extend([y_cross, y2])
             I_fill_bot.extend([y_cross, b2])
         elif diff1 > 0 and diff2 < 0:   # Case C: 向下穿越
             x_cross, y_cross = get_linear_intersection(x1, y1, x2, y2, b1, b2)
-            total_area += 0.5 * (x_cross - x1) * diff1
+            total_area += 0.5 * abs(x_cross - x1) * diff1
             V_fill.extend([x1, x_cross])
             I_fill_top.extend([y1, y_cross])
             I_fill_bot.extend([b1, y_cross])
@@ -140,12 +146,13 @@ def calculate_precise_area(V_arr, I_curve, I_base):
 
 
 def calc_ecsa(V_curve, I_curve, dl_start, dl_end, h_start, h_end,
-              scan_rate, m_pt, area_geom=1.0, q_ref=Q_REF_PT):
+              scan_rate, m_pt, area_geom=1.0, q_ref=Q_REF_PT, direction='up'):
     """計算 ECSA（參考 Pt_ECSA_calculator 方法）
-    V_curve, I_curve: 陽極（正掃）半圈的 V/I 數據（已含 RHE 換算）
+    V_curve, I_curve: 陽極（正掃）或陰極（反掃）半圈的 V/I 數據（已含 RHE 換算）
     dl_start, dl_end: 雙電層擬合區（基準線，線性回歸）
     h_start, h_end: 積分區間（H-UPD 區）
     scan_rate: V/s；m_pt: mg/cm²；area_geom: cm²
+    direction: 'up'（陽極，曲線在基準線上）/'down'（陰極，曲線在基準線下）
     回傳 dict
     """
     V = np.asarray(V_curve, dtype=float)
@@ -166,7 +173,7 @@ def calc_ecsa(V_curve, I_curve, dl_start, dl_end, h_start, h_end,
     I_base_int = slope * V_int + intercept
     # 3. 精確面積
     area_AV, V_fill, I_fill_top, I_fill_bot = calculate_precise_area(
-        V_int, I_curve_int, I_base_int)
+        V_int, I_curve_int, I_base_int, direction=direction)
     # 4. 物理計算
     charge_uC = (area_AV / scan_rate) * 1e6   # area (A·V) / (V/s) = C → µC
     ecsa_cm2 = charge_uC / q_ref
