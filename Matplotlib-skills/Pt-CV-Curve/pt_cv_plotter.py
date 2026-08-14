@@ -122,36 +122,51 @@ class PtCVPlotterApp:
         self.cycle_menu = tk.OptionMenu(cf, self.cycle_var, "圈 1", command=self._on_cycle_change)
         self.cycle_menu.pack(side=tk.LEFT, padx=4)
 
-        # 全域設定
+        # 全域設定——全部用 pack 框架（避免 grid 欄位累加超寬）
         gf = tk.LabelFrame(left, text="全域設定")
         gf.pack(fill=tk.X, pady=(6, 0))
 
+        def row(parent):
+            f = tk.Frame(parent)
+            f.pack(fill=tk.X, pady=1)
+            return f
+
         # 電位參考 + 電解質
-        tk.Label(gf, text="電位參考:").grid(row=0, column=0, sticky="w")
+        r0 = row(gf)
+        tk.Label(r0, text="電位參考:").pack(side=tk.LEFT)
         self.ref_var = tk.StringVar(value="vs RHE")
-        tk.OptionMenu(gf, self.ref_var, 'vs RHE', 'vs 參考電極',
-                      command=lambda _: self.redraw()).grid(row=0, column=1, sticky="w")
-        tk.Label(gf, text="電解質:").grid(row=0, column=2, sticky="w", padx=(10, 0))
+        ref_om = tk.OptionMenu(r0, self.ref_var, 'vs RHE', 'vs 參考電極',
+                               command=lambda _: self.redraw())
+        ref_om.config(width=8)
+        ref_om.pack(side=tk.LEFT)
+        tk.Label(r0, text="電解質:").pack(side=tk.LEFT, padx=(8, 0))
         self.elec_var = tk.StringVar(value="sat.")
-        tk.OptionMenu(gf, self.elec_var, *list(E0_REF_DICT.keys()),
-                      command=lambda _: self.redraw()).grid(row=0, column=3, sticky="w")
+        elec_om = tk.OptionMenu(r0, self.elec_var, *list(E0_REF_DICT.keys()),
+                                command=lambda _: self.redraw())
+        elec_om.config(width=4)
+        elec_om.pack(side=tk.LEFT)
 
         # 掃速
-        tk.Label(gf, text="掃速:").grid(row=1, column=0, sticky="w")
+        r1 = row(gf)
+        tk.Label(r1, text="掃速:").pack(side=tk.LEFT)
         self.scan_var = tk.StringVar(value="50")
-        tk.Entry(gf, textvariable=self.scan_var, width=6).grid(row=1, column=1, sticky="w")
-        tk.Label(gf, text="mV/s").grid(row=1, column=2, sticky="w")
+        tk.Entry(r1, textvariable=self.scan_var, width=6).pack(side=tk.LEFT)
+        tk.Label(r1, text="mV/s").pack(side=tk.LEFT)
 
         # 電流單位
-        tk.Label(gf, text="電流單位:").grid(row=2, column=0, sticky="w")
+        r2 = row(gf)
+        tk.Label(r2, text="電流單位:").pack(side=tk.LEFT)
         self.iunit_var = tk.StringVar(value="A")
-        tk.OptionMenu(gf, self.iunit_var, 'A', 'mA', 'µA',
-                      command=lambda _: self.redraw()).grid(row=2, column=1, sticky="w")
+        iu_om = tk.OptionMenu(r2, self.iunit_var, 'A', 'mA', 'µA',
+                              command=lambda _: self.redraw())
+        iu_om.config(width=3)
+        iu_om.pack(side=tk.LEFT)
 
         # 曲線外觀（兩行）
-        tk.Label(gf, text="曲線外觀:").grid(row=3, column=0, sticky="nw")
-        ca_f = tk.Frame(gf)
-        ca_f.grid(row=3, column=1, sticky="ew")
+        r3 = row(gf)
+        tk.Label(r3, text="曲線外觀:").pack(side=tk.LEFT, anchor='n')
+        ca_f = tk.Frame(r3)
+        ca_f.pack(side=tk.LEFT, fill=tk.X, expand=True)
         cf2 = tk.Frame(ca_f)
         cf2.pack(fill=tk.X)
         self.marker_global = tk.BooleanVar(value=True)
@@ -185,33 +200,40 @@ class PtCVPlotterApp:
                    textvariable=self.tick_len_global, width=4,
                    command=self.redraw).pack(side=tk.LEFT)
 
-        # 字型 + 字體
-        tk.Label(gf, text="字型:").grid(row=4, column=0, sticky="w")
+        # 字型
+        r4 = row(gf)
+        tk.Label(r4, text="字型:").pack(side=tk.LEFT)
         self.font_var = tk.StringVar(value='Arial')
         fonts = ['Arial', 'DejaVu Sans', 'Times New Roman', 'SimHei', 'Microsoft JhengHei']
-        tk.OptionMenu(gf, self.font_var, *fonts, command=lambda _: self._apply_global()).grid(row=4, column=1, sticky="ew")
-        tk.Label(gf, text="標題:").grid(row=5, column=0, sticky="w")
-        fs_f = tk.Frame(gf)
-        fs_f.grid(row=5, column=1, sticky="ew")
+        font_om = tk.OptionMenu(r4, self.font_var, *fonts, command=lambda _: self._apply_global())
+        font_om.config(width=12)
+        font_om.pack(side=tk.LEFT)
+
+        # 標題 + 刻度字體
+        r5 = row(gf)
+        tk.Label(r5, text="標題:").pack(side=tk.LEFT)
         self.title_size_var = tk.IntVar(value=18)
-        ts_spin = tk.Spinbox(fs_f, from_=6, to=40, textvariable=self.title_size_var, width=4,
+        ts_spin = tk.Spinbox(r5, from_=6, to=40, textvariable=self.title_size_var, width=4,
                              command=self._apply_global)
         ts_spin.pack(side=tk.LEFT)
         ts_spin.bind('<Return>', lambda e: self._apply_global())
         self.title_bold_var = tk.BooleanVar(value=False)
-        tk.Checkbutton(fs_f, text="粗", variable=self.title_bold_var,
+        tk.Checkbutton(r5, text="粗", variable=self.title_bold_var,
                        command=self._apply_global).pack(side=tk.LEFT, padx=(4, 0))
-        tk.Label(fs_f, text="刻度:").pack(side=tk.LEFT, padx=(8, 0))
+        tk.Label(r5, text="刻度:").pack(side=tk.LEFT, padx=(8, 0))
         self.tick_size_var = tk.IntVar(value=18)
-        tk_spin = tk.Spinbox(fs_f, from_=6, to=40, textvariable=self.tick_size_var, width=4,
+        tk_spin = tk.Spinbox(r5, from_=6, to=40, textvariable=self.tick_size_var, width=4,
                              command=self._apply_global)
         tk_spin.pack(side=tk.LEFT)
 
         # 圖比例
-        tk.Label(gf, text="圖比例:").grid(row=6, column=0, sticky="w")
+        r6 = row(gf)
+        tk.Label(r6, text="圖比例:").pack(side=tk.LEFT)
         self.fig_ratio_var = tk.StringVar(value="4:3")
-        tk.OptionMenu(gf, self.fig_ratio_var, '4:3', '16:9', '1:1', '3:2',
-                      command=lambda _: self.redraw()).grid(row=6, column=1, sticky="ew")
+        fr_om = tk.OptionMenu(r6, self.fig_ratio_var, '4:3', '16:9', '1:1', '3:2',
+                              command=lambda _: self.redraw())
+        fr_om.config(width=5)
+        fr_om.pack(side=tk.LEFT)
 
         # ===== 軸設定 =====
         tk.Label(left, text="軸設定（空=自動）", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(6, 2))
