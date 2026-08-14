@@ -1022,7 +1022,10 @@ class PtCVPlotterApp:
                     top = r['fill_I_top'] / i_scale
                     bot = r['fill_I_bot'] / i_scale
                     color = 'red' if kind == 'anodic' else 'blue'
-                    ax_small.fill_between(Vm, bot, top, color=color, alpha=0.35)
+                    # fill_between 用 min/max 確保畫在曲線與基準線之間
+                    lo = np.minimum(bot, top)
+                    hi = np.maximum(bot, top)
+                    ax_small.fill_between(Vm, lo, hi, color=color, alpha=0.35)
                 except Exception:
                     pass
             # 陽極：DL 區（紅）與積分區（紅淺）

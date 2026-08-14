@@ -128,8 +128,13 @@ def calculate_precise_area(V_arr, I_curve, I_base, direction='up'):
             avg_height = (diff1 + diff2) / 2.0
             total_area += width * avg_height
             V_fill.extend([x1, x2])
-            I_fill_top.extend([y1, y2])
-            I_fill_bot.extend([b1, b2])
+            if direction == 'down':
+                # 陰極：fill 在曲線（下方）與基準線之間——交換 top/bot
+                I_fill_top.extend([b1, b2])
+                I_fill_bot.extend([y1, y2])
+            else:
+                I_fill_top.extend([y1, y2])
+                I_fill_bot.extend([b1, b2])
         elif diff1 < 0 and diff2 > 0:   # Case B: 向上穿越
             x_cross, y_cross = get_linear_intersection(x1, y1, x2, y2, b1, b2)
             total_area += 0.5 * abs(x2 - x_cross) * diff2
