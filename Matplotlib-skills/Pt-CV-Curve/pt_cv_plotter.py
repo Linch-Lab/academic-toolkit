@@ -845,9 +845,9 @@ class PtCVPlotterApp:
         # 版面
         fw = 'bold' if self.title_bold else 'normal'
         ref_txt = self.ref_var.get()
-        self.ax.set_xlabel(f"電位 ({ref_txt})", fontsize=self.title_size, fontweight=fw, fontname=self.font_name)
+        self.ax.set_xlabel(f"Potential ({ref_txt})", fontsize=self.title_size, fontweight=fw, fontname=self.font_name)
         iunit = self.iunit_var.get()
-        self.ax.set_ylabel(f"電流 ({iunit})", fontsize=self.title_size, fontweight=fw, fontname=self.font_name)
+        self.ax.set_ylabel(f"Current ({iunit})", fontsize=self.title_size, fontweight=fw, fontname=self.font_name)
         self.ax.tick_params(labelsize=self.tick_size)
         xdir = 'in' if self.xdir_var.get() == '內' else 'out'
         ydir = 'in' if self.ydir_var.get() == '內' else 'out'
@@ -1027,8 +1027,8 @@ class PtCVPlotterApp:
             except ValueError:
                 pass
             ref_txt = self.ref_var.get()
-            ax_small.set_xlabel(f"電位 ({ref_txt})", fontsize=8)
-            ax_small.set_ylabel(f"電流 ({self.iunit_var.get()})", fontsize=8)
+            ax_small.set_xlabel(f"Potential ({ref_txt})", fontsize=8)
+            ax_small.set_ylabel(f"Current ({self.iunit_var.get()})", fontsize=8)
             ax_small.tick_params(labelsize=7)
             fig_small.tight_layout()
             canvas_small.draw()
