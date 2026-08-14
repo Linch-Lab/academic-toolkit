@@ -78,12 +78,12 @@ def split_cycles(V, I, tol=0.02):
         prev_v = V[extrema[i-1]] if i > 0 else V[0]
         types.append('max' if V[e] > prev_v else 'min')
 
-    # 半圈切割：起點 + 極值交替 = 半圈邊界
-    # 每 2 個半圈 = 1 圈（完整往返）；起點/尾端殘段併入相鄰圈
-    segs = [0] + extrema + [len(V) - 1]
-    # 合併：每對相鄰半圈成圈（segs[k] → segs[k+2]）
-    for k in range(0, len(segs) - 2, 2):
-        s, e = segs[k], segs[k+2]
+    # 圈 = 數據起點（或極值）→ 完整往返（3 極值 = 升+降+升 或 降+升+降）
+    # idxs = [0] + 極值 + [尾]；圈 = idxs[k] → idxs[k+3]（每圈含完整往返），步進 2
+    # 起點殘段/尾段併入相鄰圈——每圈都包含完整極值往返，不缺失任何電位區
+    idxs = [0] + extrema + [len(V) - 1]
+    for k in range(0, len(idxs) - 3, 2):
+        s, e = idxs[k], idxs[k+3]
         if e - s > 3:
             cycles.append((V[s:e+1], I[s:e+1]))
     if not cycles:
