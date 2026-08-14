@@ -789,34 +789,52 @@ class PtCVPlotterApp:
     # 子刻度
     # ------------------------------------------------------------------
     def _apply_minor(self, axis='x'):
-        from matplotlib.ticker import MultipleLocator
+        from matplotlib.ticker import MultipleLocator, FixedLocator, NullLocator
         if axis == 'x':
             enabled = self.xminor_var.get()
             n_str = self.xminor_n_var.get()
-            set_loc = self.ax.xaxis.set_minor_locator
             major_ticks = self.ax.get_xticks()
+            lim_lo, lim_hi = self.ax.get_xlim()
         else:
             enabled = self.yminor_var.get()
             n_str = self.yminor_n_var.get()
-            set_loc = self.ax.yaxis.set_minor_locator
             major_ticks = self.ax.get_yticks()
+            lim_lo, lim_hi = self.ax.get_ylim()
         if not enabled:
-            self.ax.minorticks_off()
+            if axis == 'x':
+                self.ax.xaxis.set_minor_locator(NullLocator())
+            else:
+                self.ax.yaxis.set_minor_locator(NullLocator())
             return
         try:
             n = int(n_str) if n_str else 4
             n = max(1, min(n, 20))
         except ValueError:
             n = 4
-        self.ax.minorticks_on()
+        # 注意：不要用 ax.minorticks_on()——它是全域的，會把另一軸的
+        # FixedLocator 重置成 AutoMinorLocator！設 locator 即啟用 minor ticks。
         if len(major_ticks) >= 2:
             major_step = abs(major_ticks[1] - major_ticks[0])
             if major_step > 0:
-                set_loc(MultipleLocator(major_step / (n + 1)))
+                # 用 FixedLocator：每個主間距內均勻插 n 個子 tick（精確）
+                step = major_step / (n + 1)
+                minor_positions = []
+                for mt in major_ticks:
+                    for k in range(1, n + 1):
+                        p = mt + k * step
+                        if lim_lo - 1e-9 <= p <= lim_hi + 1e-9:
+                            minor_positions.append(p)
+                if axis == 'x':
+                    self.ax.xaxis.set_minor_locator(FixedLocator(minor_positions))
+                else:
+                    self.ax.yaxis.set_minor_locator(FixedLocator(minor_positions))
                 return
-        lo, hi = self.ax.get_xlim() if axis == 'x' else self.ax.get_ylim()
+        lo, hi = lim_lo, lim_hi
         if hi > lo:
-            set_loc(MultipleLocator((hi - lo) / 50.0))
+            if axis == 'x':
+                self.ax.xaxis.set_minor_locator(MultipleLocator((hi - lo) / 50.0))
+            else:
+                self.ax.yaxis.set_minor_locator(MultipleLocator((hi - lo) / 50.0))
 
     # ------------------------------------------------------------------
     # 繪圖
