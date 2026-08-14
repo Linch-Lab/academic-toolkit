@@ -150,6 +150,18 @@ class NyquistPlotterApp:
         tk.Checkbutton(gf, text="顯示 branch（虛線）", variable=self.branch_var,
                        command=self.redraw).grid(row=0, column=1, sticky="e")
 
+        # 單位 + active area
+        tk.Label(gf, text="單位:").grid(row=0, column=2, sticky="w", padx=(10, 0))
+        self.unit_var = tk.StringVar(value="Ω")
+        tk.OptionMenu(gf, self.unit_var, 'Ω', 'mΩ', 'Ω·cm²', 'mΩ·cm²',
+                      command=lambda _: self.redraw()).grid(row=0, column=3, sticky="w")
+        tk.Label(gf, text="面積:").grid(row=0, column=4, sticky="w", padx=(10, 0))
+        self.area_var = tk.StringVar(value="1")   # 預設 1 cm²
+        area_entry = tk.Entry(gf, textvariable=self.area_var, width=5)
+        area_entry.grid(row=0, column=5, sticky="w")
+        area_entry.bind('<Return>', lambda e: self.redraw())
+        area_entry.bind('<FocusOut>', lambda e: self.redraw())
+
         # 曲線外觀（全域統一）——上下兩行放同一容器
         tk.Label(gf, text="曲線外觀:").grid(row=1, column=0, sticky="nw")
         ca_f = tk.Frame(gf)
@@ -534,6 +546,26 @@ class NyquistPlotterApp:
     # ------------------------------------------------------------------
     # 全域
     # ------------------------------------------------------------------
+    def _get_scale(self):
+        """依全域單位與 active area 回傳縮放倍數 (factor, unit_label)
+        Ω: ×1 | mΩ: ×1000 | Ω·cm²: ×area | mΩ·cm²: ×1000×area
+        """
+        unit = self.unit_var.get()
+        try:
+            area = float(self.area_var.get()) if self.area_var.get() else 1.0
+            if area <= 0:
+                area = 1.0
+        except ValueError:
+            area = 1.0
+        if unit == 'mΩ':
+            return 1000.0, 'mΩ'
+        elif unit == 'Ω·cm²':
+            return area, 'Ω·cm²'
+        elif unit == 'mΩ·cm²':
+            return 1000.0 * area, 'mΩ·cm²'
+        else:
+            return 1.0, 'Ω'
+
     def _apply_global(self):
         try:
             self.font_name = self.font_var.get()
@@ -771,8 +803,11 @@ class NyquistPlotterApp:
             sp.set_linewidth(spine_lw)
 
         # 繪製各數據（圖例合併：同組只顯示一個標籤）
+        scale, unit_label = self._get_scale()
         for c in self.curves:
             z, neg_zpp = c.get_raw_xy()
+            z = z * scale
+            neg_zpp = neg_zpp * scale
             # raw：預設純 marker（無線）——主標籤
             marker = c.marker_style if (self.marker_global.get()
                                         and c.marker_style != 'None') else None
@@ -783,15 +818,17 @@ class NyquistPlotterApp:
             # fitted：純實線（無 marker，不進圖例）
             if c.has_fitted:
                 fz, fneg = c.get_fitted_xy()
+                fz = fz * scale
+                fneg = fneg * scale
                 self.ax.plot(fz, fneg, label='_nolegend_',
                              color=c.color, linestyle=c.fitted_line_style,
                              linewidth=self.line_width_global.get(), alpha=0.8)
             # branch：同色虛線（可勾選，不進圖例）
             if self.branch_var.get() and c.branches:
                 for bi, (bz_col, bzpp_col) in enumerate(c.branches):
-                    bz = c.df[bz_col].astype(float).values
-                    bzpp = c.df[bzpp_col].astype(float).values
-                    self.ax.plot(bz, c._nyquist_y(bzpp),
+                    bz = c.df[bz_col].astype(float).values * scale
+                    bzpp = c._nyquist_y(c.df[bzpp_col].astype(float).values) * scale
+                    self.ax.plot(bz, bzpp,
                                  label='_nolegend_',
                                  color=c.color, linestyle='--',
                                  linewidth=1.0, alpha=0.6)
@@ -808,8 +845,8 @@ class NyquistPlotterApp:
 
         # 版面
         fw = 'bold' if self.title_bold else 'normal'
-        self.ax.set_xlabel("Z′ (Ω)", fontsize=self.title_size, fontweight=fw, fontname=self.font_name)
-        self.ax.set_ylabel("−Z″ (Ω)", fontsize=self.title_size, fontweight=fw, fontname=self.font_name)
+        self.ax.set_xlabel(f"Z′ ({unit_label})", fontsize=self.title_size, fontweight=fw, fontname=self.font_name)
+        self.ax.set_ylabel(f"−Z″ ({unit_label})", fontsize=self.title_size, fontweight=fw, fontname=self.font_name)
         self.ax.tick_params(labelsize=self.tick_size)
         # tick 方向 + 粗細/長度
         xdir = 'in' if self.xdir_var.get() == '內' else 'out'
@@ -925,16 +962,18 @@ class NyquistPlotterApp:
         if not f:
             return
         rows = []
+        scale, unit_label = self._get_scale()
         for c in self.curves:
             z, nz = c.get_raw_xy()
             freq = c.df['Frequency'].astype(float).values if 'Frequency' in c.df.columns else np.arange(len(z))
             for i in range(len(z)):
                 row = {'label': c.name, 'freq': freq[i],
-                       'Z_raw_prime': z[i], 'neg_Z_raw_double_prime': nz[i]}
+                       'Z_raw_prime': z[i] * scale, 'neg_Z_raw_double_prime': nz[i] * scale,
+                       'unit': unit_label}
                 if c.has_fitted:
                     fz, fnz = c.get_fitted_xy()
-                    row['Z_fit_prime'] = fz[i] if i < len(fz) else np.nan
-                    row['neg_Z_fit_double_prime'] = fnz[i] if i < len(fnz) else np.nan
+                    row['Z_fit_prime'] = fz[i] * scale if i < len(fz) else np.nan
+                    row['neg_Z_fit_double_prime'] = fnz[i] * scale if i < len(fnz) else np.nan
                 rows.append(row)
         out = pd.DataFrame(rows)
         out.to_csv(f, index=False)

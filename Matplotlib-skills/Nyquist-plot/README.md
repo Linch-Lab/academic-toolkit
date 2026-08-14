@@ -13,6 +13,7 @@
 | **raw 預設純 marker** | 實驗數據用 marker 顯示（無連線） |
 | **fitted 預設純實線** | 擬合數據用實線顯示（無 marker） |
 | **X/Y 同比例鎖定** | `set_aspect('equal')`（Nyquist 物理正確），可勾選關閉 |
+| **單位換算** | 全域設定：Ω / mΩ / Ω·cm² / mΩ·cm² + active area 欄位（預設 1 cm²），raw/fit/branch 與軸標題同步 |
 | **Branch 顯示** | 勾選「顯示 branch」→ 各支路虛線繪製（同主色，alpha 0.6）|
 | **完整 GUI** | 多檔案列表、↑↓排序、✎屬性、圖例拖曳+鍵盤微調+雙擊設定、軸設定（範圍/刻度/子刻度/方向）、標註、儲存 PNG/SVG/PDF、匯出 CSV |
 
