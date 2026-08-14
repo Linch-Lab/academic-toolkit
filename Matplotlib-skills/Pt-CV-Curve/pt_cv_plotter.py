@@ -105,6 +105,7 @@ class PtCVPlotterApp:
         tk.Label(left, text="CV 數據", font=("Segoe UI", 10, "bold")).pack(anchor="w")
         self.listbox = tk.Listbox(left, height=6)
         self.listbox.pack(fill=tk.X)
+        self.listbox.bind('<<ListboxSelect>>', self._on_list_select)
         bf = tk.Frame(left)
         bf.pack(fill=tk.X, pady=2)
         tk.Button(bf, text="＋ 新增", command=self.add_curve, width=8).pack(side=tk.LEFT)
@@ -413,6 +414,10 @@ class PtCVPlotterApp:
         for i, c in enumerate(self.curves):
             self.listbox.insert(tk.END, f"{i+1}. {c.name} ({c.n_cycles}圈)")
 
+    def _on_list_select(self, _evt=None):
+        """列表點選 → 更新圈下拉"""
+        self._update_cycle_menu()
+
     def _update_cycle_menu(self):
         """更新圈選擇下拉（依當前選取數據）"""
         sel = self.listbox.curselection()
@@ -430,19 +435,14 @@ class PtCVPlotterApp:
     def _set_cycle(self, idx):
         sel = self.listbox.curselection()
         if sel:
-            self.curves[sel[0]].selected_cycle = idx
+            c = self.curves[sel[0]]
+            c.selected_cycle = idx
+            self.cycle_var.set(f"圈 {idx+1}")
             self.redraw()
 
     def _on_cycle_change(self, _val):
-        sel = self.listbox.curselection()
-        if sel:
-            c = self.curves[sel[0]]
-            try:
-                idx = int(_val.split()[1]) - 1
-                c.selected_cycle = idx
-                self.redraw()
-            except (IndexError, ValueError):
-                pass
+        """OptionMenu 下拉觸發（與 _set_cycle 重複時忽略——menu 已用 _set_cycle）"""
+        pass
 
     # ------------------------------------------------------------------
     # 屬性
