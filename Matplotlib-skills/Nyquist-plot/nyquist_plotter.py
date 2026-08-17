@@ -1,20 +1,20 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Nyquist Plotter — EIS Nyquist 圖繪圖 GUI（Tkinter + Matplotlib）
+Nyquist Plotter — EIS Nyquist GUI (Tkinter + Matplotlib)
 
-功能：
-  1. 解析 DRTxECM 匯出 CSV（ECM 參數表 + 頻率響應數據塊）自動擷取：
-     - raw 數據（Z_raw_prime, Z_raw_double_prime）→ 純 marker
-     - fitted 數據（Total_Fitted_Z_prime, Total_Fitted_Z_double_prime）→ 純實線
-  2. 也支援標準 EIS CSV（f, Z', Z''）——上傳時手動指定欄位
-  3. Nyquist 慣例：X = Z′ (Ω)，Y = −Z″ (Ω)（電弧朝上）
-  4. X/Y 軸同比例鎖定（set_aspect('equal')，Nyquist 物理正確）——可切換
-  5. 完整 GUI：多檔案列表、↑↓排序、屬性（顏色/線型/marker 種類）、圖例拖曳+鍵盤微調+雙擊設定、軸設定（範圍/刻度/子刻度/方向）
+Features:
+  1. Parse DRTxECM export CSV, auto-extract:
+     - raw data → marker only
+     - fitted data → solid line
+  2. Also supports standard EIS CSV (f, Z', Z'') -- manual columns
+  3. Nyquist convention: X=Z', Y=-Z'' (arc up)
+  4. X/Y equal aspect (set_aspect equal) -- switchable
+  5. Full GUI: list, sort, properties, legend, axis
 
-適用：EIS 阻抗譜分析（燃料電池、電解器、電池等）
+For: EIS analysis (fuel cells, electrolyzers)
 
-依賴：pip install matplotlib pandas numpy
+Deps: pip install matplotlib pandas numpy
 """
 
 import os
@@ -29,34 +29,34 @@ import pandas as pd
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 
 # ------------------------------------------------------------------
-# 數據類
+# data class
 # ------------------------------------------------------------------
 class NyquistData:
-    """一組 EIS 數據（raw + fitted 兩條曲線）"""
+    """An EIS dataset (raw + fitted)"""
     def __init__(self, name, df, z_col, zpp_col,
                  color, has_fitted=False, branches=None,
                  marker_on=True, marker_style='o', marker_size=7,
                  line_style='-', line_width=2.0,
                  fitted_marker_style='o', fitted_line_style='-'):
         self.name = name
-        self.df = df.copy()          # 原始 DataFrame
-        self.z_col = z_col           # Z' 欄位
-        self.zpp_col = zpp_col       # Z'' 欄位
+        self.df = df.copy()          # original DataFrame
+        self.z_col = z_col           # Z' column
+        self.zpp_col = zpp_col       # Z'' column
         self.color = color
-        self.has_fitted = has_fitted  # 是否有 fitted 數據
+        self.has_fitted = has_fitted  # whether fitted data exists
         self.branches = branches if branches else []  # [(z', zpp'), ...]
-        self.marker_on = marker_on    # raw 用 marker（預設開）
+        self.marker_on = marker_on    # raw uses marker (default on)
         self.marker_style = marker_style
         self.marker_size = marker_size
-        self.line_style = line_style  # raw 附加線型（預設 None → 純 marker）
+        self.line_style = line_style  # raw extra linestyle (default None → marker only)
         self.line_width = line_width
-        self.fitted_marker_style = fitted_marker_style  # fitted marker（預設 None → 純線）
-        self.fitted_line_style = fitted_line_style      # fitted 線型（預設實線）
+        self.fitted_marker_style = fitted_marker_style  # fitted marker (default None → line only)
+        self.fitted_line_style = fitted_line_style      # fitted linestyle (default solid)
 
     def _nyquist_y(self, zpp):
-        """Nyquist Y 座標：自動偵測符號慣例
-        - 若 Z'' 中位數 > 0（檔案已取負慣例）→ 直接使用
-        - 若 Z'' 中位數 < 0（標準電化學慣例）→ 取負使電弧朝上
+        """Nyquist Y: auto-detect sign convention
+        - if median Z'' > 0 (already-negated) → use as-is
+        - if median Z'' < 0 (standard) → negate so arc points up
         """
         arr = np.asarray(zpp, dtype=float)
         if len(arr) == 0:
@@ -66,13 +66,13 @@ class NyquistData:
         return -arr
 
     def get_raw_xy(self):
-        """raw Nyquist：X=Z', Y=−Z''（自動符號）"""
+        """Raw Nyquist"""
         z = self.df[self.z_col].astype(float).values
         zpp = self.df[self.zpp_col].astype(float).values
         return z, self._nyquist_y(zpp)
 
     def get_fitted_xy(self):
-        """fitted Nyquist：X=Z', Y=−Z''（自動符號）"""
+        """Fitted Nyquist"""
         if not self.has_fitted:
             return None
         fz = self.df['fitted_z_prime'].astype(float).values
@@ -81,18 +81,18 @@ class NyquistData:
 
 
 # ------------------------------------------------------------------
-# 主視窗
+# Main window
 # ------------------------------------------------------------------
 class NyquistPlotterApp:
-    # Okabe-Ito 色盲友善配色（科學標準，7 色）
+    # Okabe-Ito colorblind-safe palette (7 colors)
     DEFAULT_COLORS = ['#0072B2', '#E69F00', '#56B4E9', '#009E73',
                       '#F0E442', '#CC79A7', '#D55E00']
-    # 自動配色/配 marker：依序循環不重複（7 色 × 10 marker = 70 組合）
+    # auto color/marker cycling (7×10=70 combos)
     AUTO_MARKERS = ['o', 's', '^', 'v', 'D', 'x', '+', '*', 'p', 'h']
 
     def __init__(self, root):
         self.root = root
-        self.root.title("Nyquist Plotter — EIS Nyquist 圖")
+        self.root.title("Nyquist Plotter — EIS Nyquist")
         self.root.geometry("1280x800")
 
         self.curves = []          # list[NyquistData]
@@ -106,8 +106,8 @@ class NyquistPlotterApp:
         self._legend_sel_patches = []
         self._legend_pos_custom = False
         self._drag_anchor = None
-        self._legend_cfg = {'fontsize': 12, 'fontname': 'Arial', 'frameon': True}  # 圖例設定（存下）
-        self.aspect_equal = True   # X/Y 同比例鎖定（預設開）
+        self._legend_cfg = {'fontsize': 12, 'fontname': 'Arial', 'frameon': True}  # Legend settings (persisted)
+        self.aspect_equal = True   # X/Y equal aspect (default on)
 
         self._build_ui()
         self._new_figure()
@@ -120,84 +120,84 @@ class NyquistPlotterApp:
         main = tk.Frame(self.root)
         main.pack(fill=tk.BOTH, expand=True)
 
-        # 左側控制
+        # left controls
         left = tk.Frame(main, width=320)
         left.pack(side=tk.LEFT, fill=tk.Y, padx=4, pady=4)
         left.pack_propagate(False)
 
-        # 數據列表
-        tk.Label(left, text="EIS 數據", font=("Segoe UI", 10, "bold")).pack(anchor="w")
+        # data list
+        tk.Label(left, text="EIS Data", font=("Segoe UI", 10, "bold")).pack(anchor="w")
         self.listbox = tk.Listbox(left, height=8)
         self.listbox.pack(fill=tk.X)
         bf = tk.Frame(left)
         bf.pack(fill=tk.X, pady=2)
-        tk.Button(bf, text="＋ 新增", command=self.add_curve, width=8).pack(side=tk.LEFT)
-        tk.Button(bf, text="－ 刪除", command=self.remove_curve, width=8).pack(side=tk.LEFT)
+        tk.Button(bf, text="+ Add", command=self.add_curve, width=8).pack(side=tk.LEFT)
+        tk.Button(bf, text="- Remove", command=self.remove_curve, width=8).pack(side=tk.LEFT)
         tk.Button(bf, text="↑", command=lambda: self.move_item(-1), width=3).pack(side=tk.LEFT)
         tk.Button(bf, text="↓", command=lambda: self.move_item(1), width=3).pack(side=tk.LEFT)
-        tk.Button(bf, text="✎ 屬性", command=self.edit_props, width=8).pack(side=tk.LEFT)
+        tk.Button(bf, text="✎ Properties", command=self.edit_props, width=8).pack(side=tk.LEFT)
 
-        # 全域設定
-        gf = tk.LabelFrame(left, text="全域設定")
+        # Global Settings
+        gf = tk.LabelFrame(left, text="Global Settings")
         gf.pack(fill=tk.X, pady=(6, 0))
 
-        # 同比例鎖定
-        tk.Label(gf, text="軸同比例:").grid(row=0, column=0, sticky="w")
+        # equal aspect
+        tk.Label(gf, text="Equal Aspect:").grid(row=0, column=0, sticky="w")
         self.aspect_var = tk.BooleanVar(value=True)
-        tk.Checkbutton(gf, text="(Nyquist 慣例)", variable=self.aspect_var,
+        tk.Checkbutton(gf, text="(Nyquist convention)", variable=self.aspect_var,
                        command=self.redraw).grid(row=0, column=1, sticky="w")
-        # 顯示 branch（虛線）
+        # Show branch (dashed)
         self.branch_var = tk.BooleanVar(value=False)
-        tk.Checkbutton(gf, text="顯示 branch（虛線）", variable=self.branch_var,
+        tk.Checkbutton(gf, text="Show branch (dashed)", variable=self.branch_var,
                        command=self.redraw).grid(row=0, column=1, sticky="e")
 
-        # 曲線外觀（全域統一）——上下兩行放同一容器
-        tk.Label(gf, text="曲線外觀:").grid(row=1, column=0, sticky="nw")
+        # curve style (global, 2 rows in container)
+        tk.Label(gf, text="Curve Style:").grid(row=1, column=0, sticky="nw")
         ca_f = tk.Frame(gf)
         ca_f.grid(row=1, column=1, sticky="ew")
-        # 第 1 行
+        # row 1
         cf2 = tk.Frame(ca_f)
         cf2.pack(fill=tk.X)
         self.marker_global = tk.BooleanVar(value=True)
         tk.Checkbutton(cf2, text="marker", variable=self.marker_global,
                        command=self.redraw).pack(side=tk.LEFT)
-        tk.Label(cf2, text="大小").pack(side=tk.LEFT, padx=(6, 0))
-        self.marker_size_global = tk.DoubleVar(value=4.0)   # 預設 4
+        tk.Label(cf2, text="size").pack(side=tk.LEFT, padx=(6, 0))
+        self.marker_size_global = tk.DoubleVar(value=4.0)   # default 4
         tk.Spinbox(cf2, from_=1, to=20, increment=0.5,
                    textvariable=self.marker_size_global, width=4,
                    command=self.redraw).pack(side=tk.LEFT)
-        tk.Label(cf2, text="線粗").pack(side=tk.LEFT, padx=(6, 0))
-        self.line_width_global = tk.DoubleVar(value=1.0)    # 預設 1
+        tk.Label(cf2, text="line width").pack(side=tk.LEFT, padx=(6, 0))
+        self.line_width_global = tk.DoubleVar(value=1.0)    # default 1
         tk.Spinbox(cf2, from_=0.5, to=5, increment=0.1,
                    textvariable=self.line_width_global, width=4,
                    command=self.redraw).pack(side=tk.LEFT)
-        # 第 2 行（框粗/tick粗/tick長）
+        # row 2 (spine/tick width/length)
         cf3 = tk.Frame(ca_f)
         cf3.pack(fill=tk.X, pady=(2, 0))
-        tk.Label(cf3, text="框粗").pack(side=tk.LEFT, padx=(0, 0))
-        self.spine_width_global = tk.DoubleVar(value=1.1)   # 預設 1.1
+        tk.Label(cf3, text="spine width").pack(side=tk.LEFT, padx=(0, 0))
+        self.spine_width_global = tk.DoubleVar(value=1.1)   # default 1.1
         tk.Spinbox(cf3, from_=0.5, to=5, increment=0.1,
                    textvariable=self.spine_width_global, width=4,
                    command=self.redraw).pack(side=tk.LEFT)
-        tk.Label(cf3, text="tick粗").pack(side=tk.LEFT, padx=(6, 0))
+        tk.Label(cf3, text="tickBold").pack(side=tk.LEFT, padx=(6, 0))
         self.tick_width_global = tk.DoubleVar(value=1.0)
         tk.Spinbox(cf3, from_=0.5, to=3, increment=0.5,
                    textvariable=self.tick_width_global, width=4,
                    command=self.redraw).pack(side=tk.LEFT)
-        tk.Label(cf3, text="tick長").pack(side=tk.LEFT, padx=(6, 0))
-        self.tick_len_global = tk.DoubleVar(value=1.5)      # 預設 1.5
+        tk.Label(cf3, text="tick length").pack(side=tk.LEFT, padx=(6, 0))
+        self.tick_len_global = tk.DoubleVar(value=1.5)      # default 1.5
         tk.Spinbox(cf3, from_=0.5, to=3, increment=0.5,
                    textvariable=self.tick_len_global, width=4,
                    command=self.redraw).pack(side=tk.LEFT)
 
-        # 字型
-        tk.Label(gf, text="字型:").grid(row=2, column=0, sticky="w")
+        # font
+        tk.Label(gf, text="Font:").grid(row=2, column=0, sticky="w")
         self.font_var = tk.StringVar(value='Arial')
         fonts = ['Arial', 'DejaVu Sans', 'Times New Roman', 'SimHei', 'Microsoft JhengHei']
         tk.OptionMenu(gf, self.font_var, *fonts, command=lambda _: self._apply_global()).grid(row=2, column=1, sticky="ew")
 
-        # 字體大小（標題 + 刻度同列）
-        tk.Label(gf, text="標題字體:").grid(row=3, column=0, sticky="w")
+        # font size (title + tick)
+        tk.Label(gf, text="Title Size:").grid(row=3, column=0, sticky="w")
         fs_f = tk.Frame(gf)
         fs_f.grid(row=3, column=1, sticky="ew")
         self.title_size_var = tk.IntVar(value=18)
@@ -207,9 +207,9 @@ class NyquistPlotterApp:
         ts_spin.bind('<Return>', lambda e: self._apply_global())
         ts_spin.bind('<FocusOut>', lambda e: self._apply_global())
         self.title_bold_var = tk.BooleanVar(value=False)
-        tk.Checkbutton(fs_f, text="粗體", variable=self.title_bold_var,
+        tk.Checkbutton(fs_f, text="Bold", variable=self.title_bold_var,
                        command=self._apply_global).pack(side=tk.LEFT, padx=(6, 0))
-        tk.Label(fs_f, text="刻度:").pack(side=tk.LEFT, padx=(8, 0))
+        tk.Label(fs_f, text="Tick:").pack(side=tk.LEFT, padx=(8, 0))
         self.tick_size_var = tk.IntVar(value=18)
         tk_spin = tk.Spinbox(fs_f, from_=6, to=40, textvariable=self.tick_size_var, width=4,
                              command=self._apply_global)
@@ -217,28 +217,28 @@ class NyquistPlotterApp:
         tk_spin.bind('<Return>', lambda e: self._apply_global())
         tk_spin.bind('<FocusOut>', lambda e: self._apply_global())
 
-        # 圖比例
-        tk.Label(gf, text="圖比例:").grid(row=4, column=0, sticky="w")
+        # aspect ratio
+        tk.Label(gf, text="Aspect Ratio:").grid(row=4, column=0, sticky="w")
         self.fig_ratio_var = tk.StringVar(value="4:3")
         tk.OptionMenu(gf, self.fig_ratio_var, '4:3', '16:9', '1:1', '3:2',
                       command=lambda _: self.redraw()).grid(row=4, column=1, sticky="ew")
 
-        # 單位 + active area（獨立一行）
-        tk.Label(gf, text="單位:").grid(row=5, column=0, sticky="w")
+        # unit + active area (own row)
+        tk.Label(gf, text="Unit:").grid(row=5, column=0, sticky="w")
         uf = tk.Frame(gf)
         uf.grid(row=5, column=1, sticky="ew")
         self.unit_var = tk.StringVar(value="Ω")
         tk.OptionMenu(uf, self.unit_var, 'Ω', 'mΩ', 'Ω·cm²', 'mΩ·cm²',
                       command=lambda _: self.redraw()).pack(side=tk.LEFT)
-        tk.Label(uf, text="面積:").pack(side=tk.LEFT, padx=(8, 0))
-        self.area_var = tk.StringVar(value="1")   # 預設 1 cm²
+        tk.Label(uf, text="Area:").pack(side=tk.LEFT, padx=(8, 0))
+        self.area_var = tk.StringVar(value="1")   # default 1 cm²
         area_entry = tk.Entry(uf, textvariable=self.area_var, width=5)
         area_entry.pack(side=tk.LEFT)
         area_entry.bind('<Return>', lambda e: self.redraw())
         area_entry.bind('<FocusOut>', lambda e: self.redraw())
 
-        # ===== 軸設定 =====
-        tk.Label(left, text="軸設定（空=自動）", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(6, 2))
+        # ===== Axis settings =====
+        tk.Label(left, text="Axis Settings (empty=auto)", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(6, 2))
         axf = tk.Frame(left)
         axf.pack(fill=tk.X)
 
@@ -249,13 +249,13 @@ class NyquistPlotterApp:
             tk.Entry(f, textvariable=min_var, width=5).pack(side=tk.LEFT)
             tk.Label(f, text="–").pack(side=tk.LEFT)
             tk.Entry(f, textvariable=max_var, width=5).pack(side=tk.LEFT)
-            tk.Label(f, text="刻度數").pack(side=tk.LEFT, padx=(4, 0))
+            tk.Label(f, text="N ticks").pack(side=tk.LEFT, padx=(4, 0))
             tk.Entry(f, textvariable=n_var, width=3).pack(side=tk.LEFT)
-            tk.Checkbutton(f, text="子", variable=minor_var,
+            tk.Checkbutton(f, text="min", variable=minor_var,
                            command=self.redraw).pack(side=tk.LEFT, padx=(4, 0))
-            tk.Label(f, text="子數").pack(side=tk.LEFT)
+            tk.Label(f, text="n minor").pack(side=tk.LEFT)
             tk.Entry(f, textvariable=minor_n_var, width=3).pack(side=tk.LEFT)
-            tk.OptionMenu(f, dir_var, '外', '內',
+            tk.OptionMenu(f, dir_var, 'out', 'in',
                           command=lambda _: self.redraw()).pack(side=tk.LEFT, padx=(4, 0))
             parent.columnconfigure(1, weight=1)
 
@@ -264,35 +264,35 @@ class NyquistPlotterApp:
         self.xn_var = tk.StringVar(value="")
         self.xminor_var = tk.BooleanVar(value=True)
         self.xminor_n_var = tk.StringVar(value="4")
-        self.xdir_var = tk.StringVar(value="外")
+        self.xdir_var = tk.StringVar(value="out")
         self.ymin_var = tk.StringVar(value="")
         self.ymax_var = tk.StringVar(value="")
         self.yn_var = tk.StringVar(value="")
         self.yminor_var = tk.BooleanVar(value=True)
         self.yminor_n_var = tk.StringVar(value="4")
-        self.ydir_var = tk.StringVar(value="外")
+        self.ydir_var = tk.StringVar(value="out")
 
         make_axis_row(axf, 0, "X:", self.xmin_var, self.xmax_var, self.xn_var, self.xminor_var, self.xminor_n_var, self.xdir_var)
         make_axis_row(axf, 1, "Y:", self.ymin_var, self.ymax_var, self.yn_var, self.yminor_var, self.yminor_n_var, self.ydir_var)
 
-        tk.Button(left, text="套用軸設定", command=self.redraw).pack(fill=tk.X, pady=(2, 0))
+        tk.Button(left, text="Apply Axis", command=self.redraw).pack(fill=tk.X, pady=(2, 0))
 
-        # 標註
-        tk.Label(left, text="標註", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(6, 2))
+        # Annotations
+        tk.Label(left, text="Annotations", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(6, 2))
         abf = tk.Frame(left)
         abf.pack(fill=tk.X)
-        tk.Button(abf, text="＋文字", command=self.add_text_annotation, width=8).pack(side=tk.LEFT)
-        tk.Button(abf, text="＋線段", command=self.add_line_annotation, width=8).pack(side=tk.LEFT)
-        tk.Button(abf, text="清除", command=self.clear_annotations, width=8).pack(side=tk.LEFT)
+        tk.Button(abf, text="+ Text", command=self.add_text_annotation, width=8).pack(side=tk.LEFT)
+        tk.Button(abf, text="+ Line", command=self.add_line_annotation, width=8).pack(side=tk.LEFT)
+        tk.Button(abf, text="Clear", command=self.clear_annotations, width=8).pack(side=tk.LEFT)
 
-        # 輸出
-        tk.Label(left, text="輸出", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(6, 2))
+        # Output
+        tk.Label(left, text="Output", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(6, 2))
         obf = tk.Frame(left)
         obf.pack(fill=tk.X)
-        tk.Button(obf, text="儲存圖", command=self.save_figure, width=10).pack(side=tk.LEFT)
-        tk.Button(obf, text="匯出 CSV", command=self.export_csv, width=10).pack(side=tk.LEFT)
+        tk.Button(obf, text="Save", command=self.save_figure, width=10).pack(side=tk.LEFT)
+        tk.Button(obf, text="Export CSV", command=self.export_csv, width=10).pack(side=tk.LEFT)
 
-        # 右側繪圖區
+        # right plot area
         self.plot_frame = tk.Frame(main, bg='white')
         self.plot_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
 
@@ -308,7 +308,7 @@ class NyquistPlotterApp:
         w, h = sizes.get(r, (7, 5.25))
         self.fig = plt.Figure(figsize=(w, h), dpi=100)
         self.ax = self.fig.add_subplot(111)
-        # 圖框線粗
+        # spine linewidth
         lw = getattr(self, 'spine_width_global', None)
         spine_lw = lw.get() if lw else 1.0
         for sp in self.ax.spines.values():
@@ -325,12 +325,12 @@ class NyquistPlotterApp:
         self.canvas.mpl_connect('button_release_event', self._on_legend_release)
 
     # ------------------------------------------------------------------
-    # EIS 檔案解析
+    # EIS file parsing
     # ------------------------------------------------------------------
     @staticmethod
     def parse_drtxecm_csv(path):
-        """解析 DRTxECM 匯出 CSV——回傳 (df, has_fitted) 或 None
-        格式：開頭 ECM 參數表，遇 'Merged Frequency Response' 後讀數據塊
+        """Parse DRTxECM export CSV → (df, has_fitted) or None
+        Format: ECM parameter table, data block after 'Merged Frequency Response'
         """
         try:
             with open(path, 'r', encoding='utf-8-sig', errors='replace') as f:
@@ -339,7 +339,7 @@ class NyquistPlotterApp:
             with open(path, 'r', errors='replace') as f:
                 lines = f.readlines()
 
-        # 找數據塊 header 行（含 'Frequency' 且含 'Z_raw'）
+        # find data-block header (has 'Frequency' and 'Z_raw')
         header_idx = None
         for i, ln in enumerate(lines):
             if 'Frequency' in ln and 'Z_raw' in ln:
@@ -348,7 +348,7 @@ class NyquistPlotterApp:
         if header_idx is None:
             return None
 
-        # 解析 header 欄位
+        # parse header columns
         header = [c.strip() for c in lines[header_idx].strip().split(',')]
         data_lines = []
         for ln in lines[header_idx + 1:]:
@@ -360,11 +360,11 @@ class NyquistPlotterApp:
         import io
         df = pd.read_csv(io.StringIO('\n'.join(data_lines)), header=None,
                          names=header, skipinitialspace=True)
-        # 欄位清理（去掉單位括號與空格）
+        # column cleanup (strip units/spaces)
         df.columns = [c.split('(')[0].strip().replace(' ', '_') for c in df.columns]
-        # 確認必要欄位
+        # verify required columns
         has_fitted = 'Total_Fitted_Z_prime' in df.columns
-        # 收集 branch 欄位（Branch_N_Z_prime / Branch_N_Z_double_prime）
+        # collect branch columns
         branches = []
         i = 1
         while f'Branch_{i}_Z_prime' in df.columns:
@@ -373,7 +373,7 @@ class NyquistPlotterApp:
         return df, has_fitted, branches
 
     # ------------------------------------------------------------------
-    # 上傳
+    # upload
     # ------------------------------------------------------------------
     def _auto_style(self, idx):
         color = self.DEFAULT_COLORS[idx % len(self.DEFAULT_COLORS)]
@@ -382,7 +382,7 @@ class NyquistPlotterApp:
 
     def add_curve(self):
         files = filedialog.askopenfilenames(
-            title="選擇 EIS CSV",
+            title="Select EIS CSV",
             filetypes=[("CSV", "*.csv")])
         for f in files:
             try:
@@ -396,13 +396,13 @@ class NyquistPlotterApp:
                     c = NyquistData(name, df, z_col, zpp_col, color,
                                     has_fitted=has_fitted, branches=branches,
                                     marker_style=marker)
-                    # fitted 欄位名稱
+                    # fitted column name
                     if has_fitted:
                         c.df['fitted_z_prime'] = df['Total_Fitted_Z_prime'].astype(float)
                         c.df['fitted_z_double_prime'] = df['Total_Fitted_Z_double_prime'].astype(float)
                     self.curves.append(c)
                 else:
-                    # 標準 EIS CSV——彈窗選欄位
+                    # standard EIS CSV (dialog)
                     df = pd.read_csv(f)
                     info = self._ask_columns(df, name)
                     if info is None:
@@ -414,18 +414,18 @@ class NyquistPlotterApp:
                         has_fitted=False, marker_style=marker))
                 self._refresh_list()
             except Exception as e:
-                messagebox.showerror("讀取失敗", f"{f}\n{e}")
+                messagebox.showerror("Load Failed", f"{f}\n{e}")
         self.redraw()
 
     def _ask_columns(self, df, fname):
-        """標準 CSV：彈窗選 Z' 欄與 Z'' 欄"""
+        """Standard CSV: dialog to pick Z'/Z'' columns"""
         win = tk.Toplevel(self.root)
-        win.title(f"選擇欄位: {fname}")
+        win.title(f"Select Columns: {fname}")
         win.geometry("380x180")
         win.transient(self.root)
         win.grab_set()
 
-        tk.Label(win, text=f"檔案: {fname}\n選擇 Z′（實部）與 Z″（虛部）欄位:",
+        tk.Label(win, text=f"File: {fname}\nSelect Z' (real) and Z'' (imag) columns:",
                  justify=tk.LEFT).pack(anchor="w", padx=10, pady=6)
 
         cols = list(df.columns)
@@ -433,10 +433,10 @@ class NyquistPlotterApp:
         zpp_var = tk.StringVar(value=cols[1] if len(cols) > 1 else (cols[0] if cols else ""))
 
         f1 = tk.Frame(win); f1.pack(fill=tk.X, padx=10, pady=2)
-        tk.Label(f1, text="Z′ 欄位:").pack(side=tk.LEFT)
+        tk.Label(f1, text="Z' column:").pack(side=tk.LEFT)
         tk.OptionMenu(f1, z_var, *cols).pack(side=tk.LEFT, padx=4)
         f2 = tk.Frame(win); f2.pack(fill=tk.X, padx=10, pady=2)
-        tk.Label(f2, text="Z″ 欄位:").pack(side=tk.LEFT)
+        tk.Label(f2, text="Z'' column:").pack(side=tk.LEFT)
         tk.OptionMenu(f2, zpp_var, *cols).pack(side=tk.LEFT, padx=4)
 
         result = {'v': None}
@@ -447,8 +447,8 @@ class NyquistPlotterApp:
             win.destroy()
 
         bf = tk.Frame(win); bf.pack(pady=8)
-        tk.Button(bf, text="確定", command=ok, width=10).pack(side=tk.LEFT, padx=5)
-        tk.Button(bf, text="取消", command=cancel, width=10).pack(side=tk.LEFT, padx=5)
+        tk.Button(bf, text="OK", command=ok, width=10).pack(side=tk.LEFT, padx=5)
+        tk.Button(bf, text="Cancel", command=cancel, width=10).pack(side=tk.LEFT, padx=5)
         win.wait_window()
         return result['v']
 
@@ -486,45 +486,45 @@ class NyquistPlotterApp:
             self.listbox.insert(tk.END, f"{i+1}. {c.name}{tag}")
 
     # ------------------------------------------------------------------
-    # 屬性
+    # properties
     # ------------------------------------------------------------------
     def edit_props(self):
         sel = self.listbox.curselection()
         if not sel:
-            messagebox.showinfo("提示", "請先在列表中選擇一筆數據")
+            messagebox.showinfo("Info", "Please select a dataset first")
             return
         self._edit_curve_props(sel[0])
 
     def _edit_curve_props(self, idx):
         c = self.curves[idx]
         win = tk.Toplevel(self.root)
-        win.title(f"屬性: {c.name}")
+        win.title(f"Properties: {c.name}")
         win.geometry("420x400")
         win.transient(self.root)
         win.grab_set()
 
-        tk.Label(win, text=f"數據: {c.name}（Z′: {c.z_col}, Z″: {c.zpp_col}）",
+        tk.Label(win, text=f"Data: {c.name}（Z′: {c.z_col}, Z″: {c.zpp_col}）",
                  font=("Segoe UI", 9, "bold")).pack(anchor="w", padx=8, pady=4)
 
-        # 自訂標籤
+        # custom label
         tf = tk.Frame(win); tf.pack(fill=tk.X, padx=8)
-        tk.Label(tf, text="圖例標籤:").pack(side=tk.LEFT)
+        tk.Label(tf, text="Legend Label:").pack(side=tk.LEFT)
         label_var = tk.StringVar(value=c.name)
         tk.Entry(tf, textvariable=label_var, width=22).pack(side=tk.LEFT)
         def set_label():
             c.name = label_var.get()
             self._refresh_list()
             self.redraw()
-        tk.Button(tf, text="套用", command=set_label).pack(side=tk.LEFT, padx=4)
+        tk.Button(tf, text="Apply", command=set_label).pack(side=tk.LEFT, padx=4)
 
-        # 顏色
+        # color
         cf = tk.Frame(win); cf.pack(fill=tk.X, padx=8)
-        tk.Label(cf, text="顏色:").pack(side=tk.LEFT)
+        tk.Label(cf, text="Color:").pack(side=tk.LEFT)
         color_btn = tk.Button(cf, bg=c.color, width=4,
                               command=lambda: self._pick_color_btn(color_btn, c))
         color_btn.pack(side=tk.LEFT, padx=4)
 
-        # raw marker 種類（區分數據用）
+        # raw marker style
         mf = tk.Frame(win); mf.pack(fill=tk.X, padx=8)
         tk.Label(mf, text="raw marker:").pack(side=tk.LEFT)
         ms_var = tk.StringVar(value=c.marker_style)
@@ -532,25 +532,25 @@ class NyquistPlotterApp:
         tk.OptionMenu(mf, ms_var, *markers,
                       command=lambda v: (setattr(c, 'marker_style', v), self.redraw())).pack(side=tk.LEFT, padx=4)
 
-        # fitted 線型
+        # fitted linestyle
         lf = tk.Frame(win); lf.pack(fill=tk.X, padx=8)
-        tk.Label(lf, text="fitted 線型:").pack(side=tk.LEFT)
+        tk.Label(lf, text="fitted Linestyle:").pack(side=tk.LEFT)
         fl_var = tk.StringVar(value=c.fitted_line_style)
         tk.OptionMenu(lf, fl_var, '-', '--', '-.', ':',
                       command=lambda v: (setattr(c, 'fitted_line_style', v), self.redraw())).pack(side=tk.LEFT)
 
     def _pick_color_btn(self, btn, curve):
-        rgb, _ = colorchooser.askcolor(color=curve.color, title="選擇顏色")
+        rgb, _ = colorchooser.askcolor(color=curve.color, title="Choose Color")
         if rgb:
             curve.color = '#%02x%02x%02x' % rgb
             btn.config(bg=curve.color)
             self.redraw()
 
     # ------------------------------------------------------------------
-    # 全域
+    # global
     # ------------------------------------------------------------------
     def _get_scale(self):
-        """依全域單位與 active area 回傳縮放倍數 (factor, unit_label)
+        """Return scale factor by global unit + active area
         Ω: ×1 | mΩ: ×1000 | Ω·cm²: ×area | mΩ·cm²: ×1000×area
         """
         unit = self.unit_var.get()
@@ -589,26 +589,26 @@ class NyquistPlotterApp:
         self.redraw()
 
     # ------------------------------------------------------------------
-    # 標註
+    # Annotations
     # ------------------------------------------------------------------
     def add_text_annotation(self):
-        x = simpledialog.askfloat("文字標註", "X 位置:", initialvalue=0.5)
+        x = simpledialog.askfloat("Text Annotation", "X pos:", initialvalue=0.5)
         if x is None: return
-        y = simpledialog.askfloat("文字標註", "Y 位置:", initialvalue=0.7)
+        y = simpledialog.askfloat("Text Annotation", "Y pos:", initialvalue=0.7)
         if y is None: return
-        text = simpledialog.askstring("文字標註", "文字內容:")
+        text = simpledialog.askstring("Text Annotation", "Text:")
         if not text: return
         self.annotations.append(('text', x, y, text, '#000000'))
         self.redraw()
 
     def add_line_annotation(self):
-        x1 = simpledialog.askfloat("線段標註", "起點 X:", initialvalue=0.3)
+        x1 = simpledialog.askfloat("Line Annotation", "Start X:", initialvalue=0.3)
         if x1 is None: return
-        y1 = simpledialog.askfloat("線段標註", "起點 Y:", initialvalue=0.8)
+        y1 = simpledialog.askfloat("Line Annotation", "Start Y:", initialvalue=0.8)
         if y1 is None: return
-        x2 = simpledialog.askfloat("線段標註", "終點 X:", initialvalue=0.5)
+        x2 = simpledialog.askfloat("Line Annotation", "End X:", initialvalue=0.5)
         if x2 is None: return
-        y2 = simpledialog.askfloat("線段標註", "終點 Y:", initialvalue=0.8)
+        y2 = simpledialog.askfloat("Line Annotation", "End Y:", initialvalue=0.8)
         if y2 is None: return
         self.annotations.append(('line', x1, y1, x2, y2, '#ff0000'))
         self.redraw()
@@ -618,7 +618,7 @@ class NyquistPlotterApp:
         self.redraw()
 
     # ------------------------------------------------------------------
-    # 圖例互動
+    # legend interaction
     # ------------------------------------------------------------------
     def _on_legend_press(self, event):
         if event.inaxes is None: return
@@ -685,24 +685,24 @@ class NyquistPlotterApp:
         if leg is None: return
         cfg = self._legend_cfg
         win = tk.Toplevel(self.root)
-        win.title("圖例設定")
+        win.title("Legend Settings")
         win.geometry("320x220")
         win.transient(self.root)
         win.grab_set()
         ff = tk.Frame(win); ff.pack(fill=tk.X, padx=10, pady=6)
         frame_var = tk.BooleanVar(value=cfg['frameon'])
-        tk.Checkbutton(ff, text="顯示外框", variable=frame_var).pack(side=tk.LEFT)
+        tk.Checkbutton(ff, text="Show Frame", variable=frame_var).pack(side=tk.LEFT)
         sf = tk.Frame(win); sf.pack(fill=tk.X, padx=10, pady=6)
-        tk.Label(sf, text="字體大小:").pack(side=tk.LEFT)
+        tk.Label(sf, text="Font Size:").pack(side=tk.LEFT)
         size_var = tk.IntVar(value=cfg['fontsize'])
         tk.Spinbox(sf, from_=6, to=40, textvariable=size_var, width=5).pack(side=tk.LEFT)
         ff2 = tk.Frame(win); ff2.pack(fill=tk.X, padx=10, pady=6)
-        tk.Label(ff2, text="字型:").pack(side=tk.LEFT)
+        tk.Label(ff2, text="Font:").pack(side=tk.LEFT)
         font_var = tk.StringVar(value=cfg['fontname'])
         fonts = ['Arial', 'DejaVu Sans', 'Times New Roman', 'SimHei', 'Microsoft JhengHei']
         tk.OptionMenu(ff2, font_var, *fonts).pack(side=tk.LEFT)
         def apply_settings():
-            # 存入設定（redraw 後沿用）
+            # persist settings (survive redraw)
             cfg['fontsize'] = size_var.get()
             cfg['fontname'] = font_var.get()
             cfg['frameon'] = frame_var.get()
@@ -714,8 +714,8 @@ class NyquistPlotterApp:
             self.canvas.draw_idle()
             win.destroy()
         bf = tk.Frame(win); bf.pack(pady=10)
-        tk.Button(bf, text="套用", command=apply_settings, width=10).pack(side=tk.LEFT, padx=5)
-        tk.Button(bf, text="取消", command=win.destroy, width=10).pack(side=tk.LEFT, padx=5)
+        tk.Button(bf, text="Apply", command=apply_settings, width=10).pack(side=tk.LEFT, padx=5)
+        tk.Button(bf, text="Cancel", command=win.destroy, width=10).pack(side=tk.LEFT, padx=5)
 
     def _on_legend_drag(self, event):
         if not self.legend_dragging or event.inaxes is None: return
@@ -749,7 +749,7 @@ class NyquistPlotterApp:
         self.canvas.draw()
 
     # ------------------------------------------------------------------
-    # 子刻度
+    # minor ticks
     # ------------------------------------------------------------------
     def _apply_minor(self, axis='x'):
         from matplotlib.ticker import MultipleLocator
@@ -784,17 +784,17 @@ class NyquistPlotterApp:
             set_loc(MultipleLocator((hi - lo) / 50.0))
 
     # ------------------------------------------------------------------
-    # 繪圖
+    # plotting
     # ------------------------------------------------------------------
     def redraw(self):
-        # 圖比例變更時重建 figure
+        # rebuild on aspect change
         sizes = {'4:3': (7, 5.25), '16:9': (8, 4.5), '1:1': (6, 6), '3:2': (7.5, 5)}
         r = self.fig_ratio_var.get() if hasattr(self, 'fig_ratio_var') else '4:3'
         target = sizes.get(r, (7, 5.25))
         if self.fig.get_size_inches()[0] != target[0] or self.fig.get_size_inches()[1] != target[1]:
             self._new_figure()
         self.ax.clear()
-        # 清除殘留的圖例選取框
+        # clear leftover legend box
         self._legend_sel_patches = [
             p for p in self._legend_sel_patches if p in self.fig.patches]
         for p in self._legend_sel_patches:
@@ -805,25 +805,25 @@ class NyquistPlotterApp:
         self._legend_sel_patches = []
         self.fig.patches[:] = [p for p in self.fig.patches
                                if not getattr(p, '_legend_sel', False)]
-        # 圖框線粗
+        # spine linewidth
         spine_lw = self.spine_width_global.get()
         for sp in self.ax.spines.values():
             sp.set_linewidth(spine_lw)
 
-        # 繪製各數據（圖例合併：同組只顯示一個標籤）
+        # plot each dataset (merged legend)
         scale, unit_label = self._get_scale()
         for c in self.curves:
             z, neg_zpp = c.get_raw_xy()
             z = z * scale
             neg_zpp = neg_zpp * scale
-            # raw：預設純 marker（無線）——主標籤
+            # raw: marker only (main label)
             marker = c.marker_style if (self.marker_global.get()
                                         and c.marker_style != 'None') else None
             self.ax.plot(z, neg_zpp, label=c.name,
                          color=c.color, linestyle='None',
                          marker=marker, markersize=self.marker_size_global.get(),
                          linewidth=self.line_width_global.get())
-            # fitted：純實線（無 marker，不進圖例）
+            # fitted: solid line (no marker)
             if c.has_fitted:
                 fz, fneg = c.get_fitted_xy()
                 fz = fz * scale
@@ -831,7 +831,7 @@ class NyquistPlotterApp:
                 self.ax.plot(fz, fneg, label='_nolegend_',
                              color=c.color, linestyle=c.fitted_line_style,
                              linewidth=self.line_width_global.get(), alpha=0.8)
-            # branch：同色虛線（可勾選，不進圖例）
+            # branch: dashed same color
             if self.branch_var.get() and c.branches:
                 for bi, (bz_col, bzpp_col) in enumerate(c.branches):
                     bz = c.df[bz_col].astype(float).values * scale
@@ -841,7 +841,7 @@ class NyquistPlotterApp:
                                  color=c.color, linestyle='--',
                                  linewidth=1.0, alpha=0.6)
 
-        # 標註
+        # Annotations
         for a in self.annotations:
             if a[0] == 'text':
                 _, x, y, text, color = a
@@ -851,14 +851,14 @@ class NyquistPlotterApp:
                 _, x1, y1, x2, y2, color = a
                 self.ax.plot([x1, x2], [y1, y2], color=color, lw=1.5)
 
-        # 版面
+        # layout
         fw = 'bold' if self.title_bold else 'normal'
         self.ax.set_xlabel(f"Z′ ({unit_label})", fontsize=self.title_size, fontweight=fw, fontname=self.font_name)
         self.ax.set_ylabel(f"−Z″ ({unit_label})", fontsize=self.title_size, fontweight=fw, fontname=self.font_name)
         self.ax.tick_params(labelsize=self.tick_size)
-        # tick 方向 + 粗細/長度
-        xdir = 'in' if self.xdir_var.get() == '內' else 'out'
-        ydir = 'in' if self.ydir_var.get() == '內' else 'out'
+        # tick direction + width/length
+        xdir = 'in' if self.xdir_var.get() == 'in' else 'out'
+        ydir = 'in' if self.ydir_var.get() == 'in' else 'out'
         tw = self.tick_width_global.get()
         tl = self.tick_len_global.get()
         self.ax.tick_params(axis='x', which='both', direction=xdir,
@@ -868,7 +868,7 @@ class NyquistPlotterApp:
         self.ax.tick_params(axis='x', which='minor', length=2.1*tl)
         self.ax.tick_params(axis='y', which='minor', length=2.1*tl)
 
-        # 軸範圍：預設 auto scale
+        # axis range：default auto scale
         if self.curves:
             self.ax.relim()
             self.ax.autoscale()
@@ -886,7 +886,7 @@ class NyquistPlotterApp:
                     self.ax.set_ylim(ymin, ymax)
             except ValueError:
                 pass
-            # X 軸刻度數量
+            # X n-ticks
             try:
                 if self.xn_var.get():
                     n = int(self.xn_var.get())
@@ -905,20 +905,20 @@ class NyquistPlotterApp:
             except ValueError:
                 pass
             self._apply_minor('y')
-            # X/Y 同比例鎖定（Nyquist 慣例）
+            # X/Y equal aspect (Nyquist)
             if self.aspect_var.get():
                 self.ax.set_aspect('equal', adjustable='box')
             else:
                 self.ax.set_aspect('auto')
 
-        # 圖例
+        # legend
         if self.curves:
             cfg = self._legend_cfg
             leg = self.ax.legend(loc='upper right',
                                  frameon=cfg['frameon'],
                                  fontsize=cfg['fontsize'],
                                  prop={'family': cfg['fontname']})
-            # 圖例圖示 = marker + line 組合（raw 的 marker + 代表線）
+            # legend handle = marker + line
             handles = getattr(leg, 'legend_handles', None) or getattr(leg, 'legendHandles', None)
             if handles:
                 for i, c in enumerate(self.curves):
@@ -937,7 +937,7 @@ class NyquistPlotterApp:
             leg.set_draggable(True)
             self._legend = leg
 
-        # 刻度字體
+        # tick font
         for lbl in self.ax.get_xticklabels() + self.ax.get_yticklabels():
             lbl.set_fontname(self.font_name)
 
@@ -945,30 +945,30 @@ class NyquistPlotterApp:
         self.canvas.draw_idle()
 
     # ------------------------------------------------------------------
-    # 輸出
+    # Output
     # ------------------------------------------------------------------
     def save_figure(self):
-        dpi = simpledialog.askinteger("儲存", "DPI（建議 300）:", initialvalue=300, minvalue=50, maxvalue=1200)
+        dpi = simpledialog.askinteger("Save", "DPI (suggest 300):", initialvalue=300, minvalue=50, maxvalue=1200)
         if dpi is None:
             dpi = 300
         f = filedialog.asksaveasfilename(
-            title="儲存圖檔", defaultextension=".png",
+            title="Save Figure", defaultextension=".png",
             filetypes=[("PNG", "*.png"), ("SVG", "*.svg"), ("PDF", "*.pdf")])
         if not f:
             return
         try:
             self.fig.savefig(f, dpi=dpi, bbox_inches='tight')
-            messagebox.showinfo("完成", f"已儲存:\n{f}")
+            messagebox.showinfo("Done", f"Saved:\n{f}")
         except Exception as e:
-            messagebox.showerror("儲存失敗", str(e))
+            messagebox.showerror("Save Failed", str(e))
 
     def export_csv(self):
-        """匯出合併 CSV（f, Z'_raw, -Z''_raw, Z'_fit, -Z''_fit, label）"""
+        """Export merged CSV"""
         if not self.curves:
-            messagebox.showinfo("提示", "無數據可匯出")
+            messagebox.showinfo("Info", "No data to export")
             return
         f = filedialog.asksaveasfilename(
-            title="匯出 CSV", defaultextension=".csv",
+            title="Export CSV", defaultextension=".csv",
             filetypes=[("CSV", "*.csv")])
         if not f:
             return
@@ -988,7 +988,7 @@ class NyquistPlotterApp:
                 rows.append(row)
         out = pd.DataFrame(rows)
         out.to_csv(f, index=False)
-        messagebox.showinfo("完成", f"已匯出:\n{f}")
+        messagebox.showinfo("Done", f"Exported:\n{f}")
 
 
 def main():

@@ -1,21 +1,21 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-TGA Plotter — 熱重分析（TGA）數據繪圖 GUI（Tkinter + Matplotlib）
+TGA Plotter — Thermogravimetric Analysis (TGA) GUI (Tkinter + Matplotlib)
 
-功能：
-  1. 解析 NETZSCH 匯出格式（# metadata，自動讀初始重量）+ 通用 CSV
-  2. 多檔案疊加（列表管理）
-  3. Y 軸 4 種模式：
-     A = Δm (mg) 原始質量變化
-     B = Weight (%) = (W0 + Δm)/W0 × 100  剩餘重量百分比
-     C = 失重 (%) = −Δm/W0 × 100 = 100 − B
-     DTG = 導數 d(Weight%)/dX（%/°C 或 %/min）
-  4. X 軸可選：溫度 (°C) / 時間
-  5. 初始重量：自動讀 metadata + 屬性視窗可手動覆寫
-  6. 完整 GUI：列表/↑↓排序/屬性/圖例互動/軸設定/標註/儲存
+Features:
+  1. Parse NETZSCH export (# metadata, auto initial weight) + generic CSV
+  2. Multi-file overlay (list managed)
+  3. Four Y-axis modes:
+     A = Δm (mg) raw mass change
+     B = Weight (%) = (W0 + Δm)/W0 × 100  remaining weight
+     C = Weight Loss (%) = −Δm/W0 × 100 = 100 − B
+     DTG = derivative d(Weight%)/dX (%/°C or %/min)
+  4. X-axis: temperature (°C) / time
+  5. Initial weight: auto metadata + override
+  6. Full GUI: list/sort/properties/legend/axis/annotations/save
 
-依賴：pip install matplotlib pandas numpy
+Deps: pip install matplotlib pandas numpy
 """
 
 import os
@@ -32,10 +32,10 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 
 
 # ------------------------------------------------------------------
-# TGA 檔案解析
+# TGA file parsing
 # ------------------------------------------------------------------
 def _read_text(path):
-    """嘗試多編碼讀取（NETZSCH 中文 Windows 常是 GBK）"""
+    """Try multiple encodings (NETZSCH CN Windows often GBK)"""
     for enc in ('utf-8-sig', 'utf-8', 'gbk', 'big5', 'latin-1'):
         try:
             with open(path, 'r', encoding=enc) as f:
@@ -47,13 +47,13 @@ def _read_text(path):
 
 
 def parse_tga_file(path):
-    """解析 TGA 檔案（NETZSCH 或通用 CSV）
-    回傳 (df, initial_weight_mg)
+    """Parse TGA file (NETZSCH or generic CSV)
+    Returns (df, initial_weight_mg)
     """
     text, enc = _read_text(path)
     first_line = text.splitlines()[0] if text else ''
     if first_line.startswith('#'):
-        # NETZSCH 格式
+        # NETZSCH format
         meta_weight = None
         for l in text.splitlines():
             if l.startswith('#') and 'Weight:' in l:
@@ -72,13 +72,13 @@ def parse_tga_file(path):
     else:
         df = pd.read_csv(path, encoding=enc)
         meta_weight = None
-    # 清理欄位名（去掉單位括號）
+    # clean column names (strip units)
     df.columns = [str(c).strip() for c in df.columns]
     return df, meta_weight
 
 
 def detect_columns(df):
-    """自動偵測欄位：回傳 dict(temp, time, weight) 可能的欄名清單"""
+    """Auto-detect columns: returns dict(temp, time, weight)"""
     cols = list(df.columns)
     temp_cols = [c for c in cols if re.search(r'temp|°c|℃|temperature', c, re.I)]
     time_cols = [c for c in cols if re.search(r'time|^t\b|時間', c, re.I)]
@@ -87,44 +87,44 @@ def detect_columns(df):
 
 
 # ------------------------------------------------------------------
-# 數據類
+# data class
 # ------------------------------------------------------------------
 class TGAData:
-    """一組 TGA 數據"""
+    """A TGA dataset"""
     def __init__(self, name, df, x_col, weight_col, initial_weight,
                  color, marker_style='o', line_style='-'):
         self.name = name
         self.df = df.copy()
-        self.x_col = x_col          # 目前選用的 X 欄（Temperature 或 Time）
+        self.x_col = x_col          # current X column
         self.weight_col = weight_col
-        self.initial_weight = initial_weight  # mg，None 表示未設定
+        self.initial_weight = initial_weight  # mg, None if unset
         self.color = color
         self.marker_style = marker_style
         self.line_style = line_style
-        # 可能的 X 欄（溫度/時間）
+        # possible X columns
         self.temp_col = None
         self.time_col = None
 
     def raw_weight(self):
-        """原始質量變化 Δm (mg)"""
+        """Raw mass change Δm (mg)"""
         return self.df[self.weight_col].astype(float).values
 
     def weight_pct(self):
-        """剩餘重量百分比（B 模式）"""
+        """Remaining weight percent (mode B)"""
         raw = self.raw_weight()
         if self.initial_weight and self.initial_weight > 0:
             return (self.initial_weight + raw) / self.initial_weight * 100.0
-        return raw  # 無初始重量 → 回傳原始值
+        return raw  # no initial weight → return raw
 
     def loss_pct(self):
-        """失重百分比（C 模式）"""
+        """Weight loss percent (mode C)"""
         return 100.0 - self.weight_pct()
 
     def x_values(self):
         return self.df[self.x_col].astype(float).values
 
     def get_xy(self, mode):
-        """依 Y 軸模式回傳 (x, y)"""
+        """Return (x, y) by Y-axis mode"""
         x = self.x_values()
         if mode == 'A':
             return x, self.raw_weight()
@@ -140,7 +140,7 @@ class TGAData:
 
 
 # ------------------------------------------------------------------
-# 主視窗
+# Main window
 # ------------------------------------------------------------------
 class TGAPlotterApp:
     DEFAULT_COLORS = ['#0072B2', '#E69F00', '#56B4E9', '#009E73',
@@ -149,13 +149,13 @@ class TGAPlotterApp:
     Y_MODES = {
         'A': 'Δm (mg)',
         'B': 'Weight (%)',
-        'C': '失重 (%)',
+        'C': 'Weight Loss (%)',
         'DTG': 'DTG (%/°C)',
     }
 
     def __init__(self, root):
         self.root = root
-        self.root.title("TGA Plotter — 熱重分析")
+        self.root.title("TGA Plotter — Thermogravimetric Analysis")
         self.root.geometry("1280x800")
 
         self.curves = []
@@ -186,21 +186,21 @@ class TGAPlotterApp:
         left.pack(side=tk.LEFT, fill=tk.Y, padx=4, pady=4)
         left.pack_propagate(False)
 
-        # 數據列表
-        tk.Label(left, text="TGA 數據", font=("Segoe UI", 10, "bold")).pack(anchor="w")
+        # data list
+        tk.Label(left, text="TGA Data", font=("Segoe UI", 10, "bold")).pack(anchor="w")
         self.listbox = tk.Listbox(left, height=6)
         self.listbox.pack(fill=tk.X)
         self.listbox.bind('<<ListboxSelect>>', self._on_list_select)
         bf = tk.Frame(left)
         bf.pack(fill=tk.X, pady=2)
-        tk.Button(bf, text="＋ 新增", command=self.add_curve, width=8).pack(side=tk.LEFT)
-        tk.Button(bf, text="－ 刪除", command=self.remove_curve, width=8).pack(side=tk.LEFT)
+        tk.Button(bf, text="+ Add", command=self.add_curve, width=8).pack(side=tk.LEFT)
+        tk.Button(bf, text="- Remove", command=self.remove_curve, width=8).pack(side=tk.LEFT)
         tk.Button(bf, text="↑", command=lambda: self.move_item(-1), width=3).pack(side=tk.LEFT)
         tk.Button(bf, text="↓", command=lambda: self.move_item(1), width=3).pack(side=tk.LEFT)
-        tk.Button(bf, text="✎ 屬性", command=self.edit_props, width=8).pack(side=tk.LEFT)
+        tk.Button(bf, text="✎ Properties", command=self.edit_props, width=8).pack(side=tk.LEFT)
 
-        # 全域設定
-        gf = tk.LabelFrame(left, text="全域設定")
+        # Global Settings
+        gf = tk.LabelFrame(left, text="Global Settings")
         gf.pack(fill=tk.X, pady=(6, 0))
 
         def row(parent):
@@ -208,24 +208,24 @@ class TGAPlotterApp:
             f.pack(fill=tk.X, pady=1)
             return f
 
-        # Y 軸模式 + X 軸
+        # Y mode + X axis
         r0 = row(gf)
-        tk.Label(r0, text="Y 軸:").pack(side=tk.LEFT)
+        tk.Label(r0, text="Y Axis:").pack(side=tk.LEFT)
         self.ymode_var = tk.StringVar(value="B")
         ym_om = tk.OptionMenu(r0, self.ymode_var, 'A', 'B', 'C', 'DTG',
                               command=lambda _: self.redraw())
         ym_om.config(width=5)
         ym_om.pack(side=tk.LEFT)
-        tk.Label(r0, text="X 軸:").pack(side=tk.LEFT, padx=(8, 0))
+        tk.Label(r0, text="X Axis:").pack(side=tk.LEFT, padx=(8, 0))
         self.xaxis_var = tk.StringVar(value="Temperature")
         self.xaxis_menu = tk.OptionMenu(r0, self.xaxis_var, "Temperature",
                                         command=lambda _: self.redraw())
         self.xaxis_menu.config(width=10)
         self.xaxis_menu.pack(side=tk.LEFT)
 
-        # 曲線外觀（兩行）
+        # curve style (two rows)
         r3 = row(gf)
-        tk.Label(r3, text="曲線外觀:").pack(side=tk.LEFT, anchor='n')
+        tk.Label(r3, text="Curve Style:").pack(side=tk.LEFT, anchor='n')
         ca_f = tk.Frame(r3)
         ca_f.pack(side=tk.LEFT, fill=tk.X, expand=True)
         cf2 = tk.Frame(ca_f)
@@ -233,71 +233,71 @@ class TGAPlotterApp:
         self.marker_global = tk.BooleanVar(value=True)
         tk.Checkbutton(cf2, text="marker", variable=self.marker_global,
                        command=self.redraw).pack(side=tk.LEFT)
-        tk.Label(cf2, text="大小").pack(side=tk.LEFT, padx=(6, 0))
+        tk.Label(cf2, text="size").pack(side=tk.LEFT, padx=(6, 0))
         self.marker_size_global = tk.DoubleVar(value=4.0)
         tk.Spinbox(cf2, from_=1, to=20, increment=0.5,
                    textvariable=self.marker_size_global, width=4,
                    command=self.redraw).pack(side=tk.LEFT)
-        tk.Label(cf2, text="線粗").pack(side=tk.LEFT, padx=(6, 0))
+        tk.Label(cf2, text="line width").pack(side=tk.LEFT, padx=(6, 0))
         self.line_width_global = tk.DoubleVar(value=1.0)
         tk.Spinbox(cf2, from_=0.5, to=5, increment=0.1,
                    textvariable=self.line_width_global, width=4,
                    command=self.redraw).pack(side=tk.LEFT)
         cf3 = tk.Frame(ca_f)
         cf3.pack(fill=tk.X, pady=(2, 0))
-        tk.Label(cf3, text="框粗").pack(side=tk.LEFT)
+        tk.Label(cf3, text="spine width").pack(side=tk.LEFT)
         self.spine_width_global = tk.DoubleVar(value=1.1)
         tk.Spinbox(cf3, from_=0.5, to=5, increment=0.1,
                    textvariable=self.spine_width_global, width=4,
                    command=self.redraw).pack(side=tk.LEFT)
-        tk.Label(cf3, text="tick粗").pack(side=tk.LEFT, padx=(6, 0))
+        tk.Label(cf3, text="tickBold").pack(side=tk.LEFT, padx=(6, 0))
         self.tick_width_global = tk.DoubleVar(value=1.0)
         tk.Spinbox(cf3, from_=0.5, to=3, increment=0.5,
                    textvariable=self.tick_width_global, width=4,
                    command=self.redraw).pack(side=tk.LEFT)
-        tk.Label(cf3, text="tick長").pack(side=tk.LEFT, padx=(6, 0))
+        tk.Label(cf3, text="tick length").pack(side=tk.LEFT, padx=(6, 0))
         self.tick_len_global = tk.DoubleVar(value=1.5)
         tk.Spinbox(cf3, from_=0.5, to=3, increment=0.5,
                    textvariable=self.tick_len_global, width=4,
                    command=self.redraw).pack(side=tk.LEFT)
 
-        # 字型
+        # font
         r4 = row(gf)
-        tk.Label(r4, text="字型:").pack(side=tk.LEFT)
+        tk.Label(r4, text="Font:").pack(side=tk.LEFT)
         self.font_var = tk.StringVar(value='Arial')
         fonts = ['Arial', 'DejaVu Sans', 'Times New Roman', 'SimHei', 'Microsoft JhengHei']
         font_om = tk.OptionMenu(r4, self.font_var, *fonts, command=lambda _: self._apply_global())
         font_om.config(width=12)
         font_om.pack(side=tk.LEFT)
 
-        # 標題 + 刻度字體
+        # title + tick font
         r5 = row(gf)
-        tk.Label(r5, text="標題:").pack(side=tk.LEFT)
+        tk.Label(r5, text="Title:").pack(side=tk.LEFT)
         self.title_size_var = tk.IntVar(value=18)
         ts_spin = tk.Spinbox(r5, from_=6, to=40, textvariable=self.title_size_var, width=4,
                              command=self._apply_global)
         ts_spin.pack(side=tk.LEFT)
         ts_spin.bind('<Return>', lambda e: self._apply_global())
         self.title_bold_var = tk.BooleanVar(value=False)
-        tk.Checkbutton(r5, text="粗", variable=self.title_bold_var,
+        tk.Checkbutton(r5, text="Bold", variable=self.title_bold_var,
                        command=self._apply_global).pack(side=tk.LEFT, padx=(4, 0))
-        tk.Label(r5, text="刻度:").pack(side=tk.LEFT, padx=(8, 0))
+        tk.Label(r5, text="Tick:").pack(side=tk.LEFT, padx=(8, 0))
         self.tick_size_var = tk.IntVar(value=18)
         tk_spin = tk.Spinbox(r5, from_=6, to=40, textvariable=self.tick_size_var, width=4,
                              command=self._apply_global)
         tk_spin.pack(side=tk.LEFT)
 
-        # 圖比例
+        # aspect ratio
         r6 = row(gf)
-        tk.Label(r6, text="圖比例:").pack(side=tk.LEFT)
+        tk.Label(r6, text="Aspect Ratio:").pack(side=tk.LEFT)
         self.fig_ratio_var = tk.StringVar(value="4:3")
         fr_om = tk.OptionMenu(r6, self.fig_ratio_var, '4:3', '16:9', '1:1', '3:2',
                               command=lambda _: self.redraw())
         fr_om.config(width=5)
         fr_om.pack(side=tk.LEFT)
 
-        # ===== 軸設定 =====
-        tk.Label(left, text="軸設定（空=自動）", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(6, 2))
+        # ===== Axis settings =====
+        tk.Label(left, text="Axis Settings (empty=auto)", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(6, 2))
         axf = tk.Frame(left)
         axf.pack(fill=tk.X)
 
@@ -308,13 +308,13 @@ class TGAPlotterApp:
             tk.Entry(f, textvariable=min_var, width=5).pack(side=tk.LEFT)
             tk.Label(f, text="–").pack(side=tk.LEFT)
             tk.Entry(f, textvariable=max_var, width=5).pack(side=tk.LEFT)
-            tk.Label(f, text="刻度數").pack(side=tk.LEFT, padx=(4, 0))
+            tk.Label(f, text="N ticks").pack(side=tk.LEFT, padx=(4, 0))
             tk.Entry(f, textvariable=n_var, width=3).pack(side=tk.LEFT)
-            tk.Checkbutton(f, text="子", variable=minor_var,
+            tk.Checkbutton(f, text="min", variable=minor_var,
                            command=self.redraw).pack(side=tk.LEFT, padx=(4, 0))
-            tk.Label(f, text="子數").pack(side=tk.LEFT)
+            tk.Label(f, text="n minor").pack(side=tk.LEFT)
             tk.Entry(f, textvariable=minor_n_var, width=3).pack(side=tk.LEFT)
-            tk.OptionMenu(f, dir_var, '外', '內',
+            tk.OptionMenu(f, dir_var, 'out', 'in',
                           command=lambda _: self.redraw()).pack(side=tk.LEFT, padx=(4, 0))
             parent.columnconfigure(1, weight=1)
 
@@ -323,31 +323,31 @@ class TGAPlotterApp:
         self.xn_var = tk.StringVar(value="")
         self.xminor_var = tk.BooleanVar(value=True)
         self.xminor_n_var = tk.StringVar(value="4")
-        self.xdir_var = tk.StringVar(value="外")
+        self.xdir_var = tk.StringVar(value="out")
         self.ymin_var = tk.StringVar(value="")
         self.ymax_var = tk.StringVar(value="")
         self.yn_var = tk.StringVar(value="")
         self.yminor_var = tk.BooleanVar(value=True)
         self.yminor_n_var = tk.StringVar(value="4")
-        self.ydir_var = tk.StringVar(value="外")
+        self.ydir_var = tk.StringVar(value="out")
 
         make_axis_row(axf, 0, "X:", self.xmin_var, self.xmax_var, self.xn_var, self.xminor_var, self.xminor_n_var, self.xdir_var)
         make_axis_row(axf, 1, "Y:", self.ymin_var, self.ymax_var, self.yn_var, self.yminor_var, self.yminor_n_var, self.ydir_var)
-        tk.Button(left, text="套用軸設定", command=self.redraw).pack(fill=tk.X, pady=(2, 0))
+        tk.Button(left, text="Apply Axis", command=self.redraw).pack(fill=tk.X, pady=(2, 0))
 
-        # 標註
-        tk.Label(left, text="標註", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(6, 2))
+        # Annotations
+        tk.Label(left, text="Annotations", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(6, 2))
         abf = tk.Frame(left)
         abf.pack(fill=tk.X)
-        tk.Button(abf, text="＋文字", command=self.add_text_annotation, width=8).pack(side=tk.LEFT)
-        tk.Button(abf, text="＋線段", command=self.add_line_annotation, width=8).pack(side=tk.LEFT)
-        tk.Button(abf, text="清除", command=self.clear_annotations, width=8).pack(side=tk.LEFT)
+        tk.Button(abf, text="+ Text", command=self.add_text_annotation, width=8).pack(side=tk.LEFT)
+        tk.Button(abf, text="+ Line", command=self.add_line_annotation, width=8).pack(side=tk.LEFT)
+        tk.Button(abf, text="Clear", command=self.clear_annotations, width=8).pack(side=tk.LEFT)
 
-        # 輸出
-        tk.Label(left, text="輸出", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(6, 2))
+        # Output
+        tk.Label(left, text="Output", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(6, 2))
         obf = tk.Frame(left)
         obf.pack(fill=tk.X)
-        tk.Button(obf, text="儲存圖", command=self.save_figure, width=10).pack(side=tk.LEFT)
+        tk.Button(obf, text="Save", command=self.save_figure, width=10).pack(side=tk.LEFT)
 
         self.plot_frame = tk.Frame(main, bg='white')
         self.plot_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
@@ -379,7 +379,7 @@ class TGAPlotterApp:
         self.canvas.mpl_connect('button_release_event', self._on_legend_release)
 
     # ------------------------------------------------------------------
-    # 上傳
+    # upload
     # ------------------------------------------------------------------
     def _auto_style(self, idx):
         color = self.DEFAULT_COLORS[idx % len(self.DEFAULT_COLORS)]
@@ -388,13 +388,13 @@ class TGAPlotterApp:
 
     def add_curve(self):
         files = filedialog.askopenfilenames(
-            title="選擇 TGA 檔案",
-            filetypes=[("TGA/CSV", "*.txt *.csv"), ("所有檔案", "*.*")])
+            title="Select TGA File",
+            filetypes=[("TGA/CSV", "*.txt *.csv"), ("All Files", "*.*")])
         for f in files:
             try:
                 df, meta_weight = parse_tga_file(f)
                 if len(df.columns) < 2:
-                    messagebox.showerror("格式錯誤", f"{os.path.basename(f)}\n至少需要 2 欄")
+                    messagebox.showerror("Format Error", f"{os.path.basename(f)}\nNeed at least 2 columns")
                     continue
                 name = os.path.splitext(os.path.basename(f))[0]
                 info = self._ask_columns(df, name, meta_weight)
@@ -403,7 +403,7 @@ class TGAPlotterApp:
                 x_col, weight_col, init_w = info
                 color, marker = self._auto_style(len(self.curves))
                 c = TGAData(name, df, x_col, weight_col, init_w, color, marker_style=marker)
-                # 設定 temp/time 欄
+                # set temp/time columns
                 detected = detect_columns(df)
                 c.temp_col = detected['temp'][0] if detected['temp'] else x_col
                 c.time_col = detected['time'][0] if detected['time'] else None
@@ -411,40 +411,40 @@ class TGAPlotterApp:
                 self._refresh_list()
                 self._update_xaxis_menu()
             except Exception as e:
-                messagebox.showerror("讀取失敗", f"{f}\n{e}")
+                messagebox.showerror("Load Failed", f"{f}\n{e}")
         self.redraw()
 
     def _ask_columns(self, df, fname, meta_weight):
         win = tk.Toplevel(self.root)
-        win.title(f"選擇欄位: {fname}")
+        win.title(f"Select Columns: {fname}")
         win.geometry("420x200")
         win.transient(self.root)
         win.grab_set()
         detected = detect_columns(df)
         cols = list(df.columns)
-        tk.Label(win, text=f"檔案: {fname}\n選擇 X 軸與重量欄位:",
+        tk.Label(win, text=f"File: {fname}\nSelect X-axis and weight columns:",
                  justify=tk.LEFT).pack(anchor="w", padx=10, pady=6)
-        # X 欄（預設溫度）
+        # X column (default temp)
         default_x = detected['temp'][0] if detected['temp'] else (detected['time'][0] if detected['time'] else cols[0])
         x_var = tk.StringVar(value=default_x)
         f1 = tk.Frame(win); f1.pack(fill=tk.X, padx=10, pady=2)
-        tk.Label(f1, text="X 軸:").pack(side=tk.LEFT)
+        tk.Label(f1, text="X Axis:").pack(side=tk.LEFT)
         tk.OptionMenu(f1, x_var, *cols).pack(side=tk.LEFT, padx=4)
-        # 重量欄
+        # weight column
         default_w = detected['weight'][0] if detected['weight'] else (cols[1] if len(cols) > 1 else cols[0])
         w_var = tk.StringVar(value=default_w)
         f2 = tk.Frame(win); f2.pack(fill=tk.X, padx=10, pady=2)
-        tk.Label(f2, text="重量:").pack(side=tk.LEFT)
+        tk.Label(f2, text="Weight:").pack(side=tk.LEFT)
         tk.OptionMenu(f2, w_var, *cols).pack(side=tk.LEFT, padx=4)
-        # 初始重量
+        # initial weight
         f3 = tk.Frame(win); f3.pack(fill=tk.X, padx=10, pady=2)
-        tk.Label(f3, text="初始重量 (mg):").pack(side=tk.LEFT)
+        tk.Label(f3, text="Initial Weight (mg):").pack(side=tk.LEFT)
         init_var = tk.StringVar(value=f"{meta_weight}" if meta_weight else "")
         tk.Entry(f3, textvariable=init_var, width=10).pack(side=tk.LEFT, padx=4)
         if meta_weight:
-            tk.Label(f3, text="(已自動讀取)").pack(side=tk.LEFT)
+            tk.Label(f3, text="(auto-detected)").pack(side=tk.LEFT)
         else:
-            tk.Label(f3, text="(手動輸入)").pack(side=tk.LEFT)
+            tk.Label(f3, text="(manual input)").pack(side=tk.LEFT)
         result = {'v': None}
         def ok():
             try:
@@ -456,8 +456,8 @@ class TGAPlotterApp:
         def cancel():
             win.destroy()
         bf = tk.Frame(win); bf.pack(pady=8)
-        tk.Button(bf, text="確定", command=ok, width=10).pack(side=tk.LEFT, padx=5)
-        tk.Button(bf, text="取消", command=cancel, width=10).pack(side=tk.LEFT, padx=5)
+        tk.Button(bf, text="OK", command=ok, width=10).pack(side=tk.LEFT, padx=5)
+        tk.Button(bf, text="Cancel", command=cancel, width=10).pack(side=tk.LEFT, padx=5)
         win.wait_window()
         return result['v']
 
@@ -498,7 +498,7 @@ class TGAPlotterApp:
         pass
 
     def _update_xaxis_menu(self):
-        """更新 X 軸下拉（依已載入數據是否有時間欄）"""
+        """Update X-axis menu (based on loaded data)"""
         has_time = any(c.time_col for c in self.curves)
         menu = self.xaxis_menu['menu']
         menu.delete(0, 'end')
@@ -509,7 +509,7 @@ class TGAPlotterApp:
 
     def _set_xaxis(self, val):
         self.xaxis_var.set(val)
-        # 切換各曲線的 x_col
+        # switch x_col per curve
         for c in self.curves:
             if val == "Time" and c.time_col:
                 c.x_col = c.time_col
@@ -518,36 +518,36 @@ class TGAPlotterApp:
         self.redraw()
 
     # ------------------------------------------------------------------
-    # 屬性
+    # properties
     # ------------------------------------------------------------------
     def edit_props(self):
         sel = self.listbox.curselection()
         if not sel:
-            messagebox.showinfo("提示", "請先在列表中選擇一筆數據")
+            messagebox.showinfo("Info", "Please select a dataset first")
             return
         self._edit_curve_props(sel[0])
 
     def _edit_curve_props(self, idx):
         c = self.curves[idx]
         win = tk.Toplevel(self.root)
-        win.title(f"屬性: {c.name}")
+        win.title(f"Properties: {c.name}")
         win.geometry("400x300")
         win.transient(self.root)
         win.grab_set()
-        tk.Label(win, text=f"數據: {c.name}", font=("Segoe UI", 9, "bold")).pack(anchor="w", padx=8, pady=4)
-        # 標籤
+        tk.Label(win, text=f"Data: {c.name}", font=("Segoe UI", 9, "bold")).pack(anchor="w", padx=8, pady=4)
+        # label
         tf = tk.Frame(win); tf.pack(fill=tk.X, padx=8)
-        tk.Label(tf, text="圖例標籤:").pack(side=tk.LEFT)
+        tk.Label(tf, text="Legend Label:").pack(side=tk.LEFT)
         label_var = tk.StringVar(value=c.name)
         tk.Entry(tf, textvariable=label_var, width=22).pack(side=tk.LEFT)
         def set_label():
             c.name = label_var.get()
             self._refresh_list()
             self.redraw()
-        tk.Button(tf, text="套用", command=set_label).pack(side=tk.LEFT, padx=4)
-        # 初始重量（可手動覆寫）
+        tk.Button(tf, text="Apply", command=set_label).pack(side=tk.LEFT, padx=4)
+        # initial weight (overridable)
         wf = tk.Frame(win); wf.pack(fill=tk.X, padx=8)
-        tk.Label(wf, text="初始重量 (mg):").pack(side=tk.LEFT)
+        tk.Label(wf, text="Initial Weight (mg):").pack(side=tk.LEFT)
         init_var = tk.StringVar(value=f"{c.initial_weight}" if c.initial_weight else "")
         tk.Entry(wf, textvariable=init_var, width=10).pack(side=tk.LEFT, padx=4)
         def set_init():
@@ -557,36 +557,36 @@ class TGAPlotterApp:
                 c.initial_weight = None
             self._refresh_list()
             self.redraw()
-        tk.Button(wf, text="套用", command=set_init).pack(side=tk.LEFT, padx=4)
-        # 顏色
+        tk.Button(wf, text="Apply", command=set_init).pack(side=tk.LEFT, padx=4)
+        # color
         cf = tk.Frame(win); cf.pack(fill=tk.X, padx=8)
-        tk.Label(cf, text="顏色:").pack(side=tk.LEFT)
+        tk.Label(cf, text="Color:").pack(side=tk.LEFT)
         color_btn = tk.Button(cf, bg=c.color, width=4,
                               command=lambda: self._pick_color_btn(color_btn, c))
         color_btn.pack(side=tk.LEFT, padx=4)
-        # marker 種類
+        # marker style
         mf = tk.Frame(win); mf.pack(fill=tk.X, padx=8)
         tk.Label(mf, text="marker:").pack(side=tk.LEFT)
         ms_var = tk.StringVar(value=c.marker_style)
         markers = ['o', 's', '^', 'v', 'D', 'x', '+', '*', 'p', 'h', 'None']
         tk.OptionMenu(mf, ms_var, *markers,
                       command=lambda v: (setattr(c, 'marker_style', v), self.redraw())).pack(side=tk.LEFT, padx=4)
-        # 線型
+        # linestyle
         lf = tk.Frame(win); lf.pack(fill=tk.X, padx=8)
-        tk.Label(lf, text="線型:").pack(side=tk.LEFT)
+        tk.Label(lf, text="Linestyle:").pack(side=tk.LEFT)
         ls_var = tk.StringVar(value=c.line_style)
         tk.OptionMenu(lf, ls_var, '-', '--', '-.', ':',
                       command=lambda v: (setattr(c, 'line_style', v), self.redraw())).pack(side=tk.LEFT)
 
     def _pick_color_btn(self, btn, curve):
-        rgb, _ = colorchooser.askcolor(color=curve.color, title="選擇顏色")
+        rgb, _ = colorchooser.askcolor(color=curve.color, title="Choose Color")
         if rgb:
             curve.color = '#%02x%02x%02x' % rgb
             btn.config(bg=curve.color)
             self.redraw()
 
     # ------------------------------------------------------------------
-    # 全域
+    # global
     # ------------------------------------------------------------------
     def _apply_global(self):
         try:
@@ -608,26 +608,26 @@ class TGAPlotterApp:
         self.redraw()
 
     # ------------------------------------------------------------------
-    # 標註
+    # Annotations
     # ------------------------------------------------------------------
     def add_text_annotation(self):
-        x = simpledialog.askfloat("文字標註", "X 位置:", initialvalue=400.0)
+        x = simpledialog.askfloat("Text Annotation", "X pos:", initialvalue=400.0)
         if x is None: return
-        y = simpledialog.askfloat("文字標註", "Y 位置:", initialvalue=50.0)
+        y = simpledialog.askfloat("Text Annotation", "Y pos:", initialvalue=50.0)
         if y is None: return
-        text = simpledialog.askstring("文字標註", "文字內容:")
+        text = simpledialog.askstring("Text Annotation", "Text:")
         if not text: return
         self.annotations.append(('text', x, y, text, '#000000'))
         self.redraw()
 
     def add_line_annotation(self):
-        x1 = simpledialog.askfloat("線段標註", "起點 X:", initialvalue=200.0)
+        x1 = simpledialog.askfloat("Line Annotation", "Start X:", initialvalue=200.0)
         if x1 is None: return
-        y1 = simpledialog.askfloat("線段標註", "起點 Y:", initialvalue=80.0)
+        y1 = simpledialog.askfloat("Line Annotation", "Start Y:", initialvalue=80.0)
         if y1 is None: return
-        x2 = simpledialog.askfloat("線段標註", "終點 X:", initialvalue=600.0)
+        x2 = simpledialog.askfloat("Line Annotation", "End X:", initialvalue=600.0)
         if x2 is None: return
-        y2 = simpledialog.askfloat("線段標註", "終點 Y:", initialvalue=80.0)
+        y2 = simpledialog.askfloat("Line Annotation", "End Y:", initialvalue=80.0)
         if y2 is None: return
         self.annotations.append(('line', x1, y1, x2, y2, '#ff0000'))
         self.redraw()
@@ -637,7 +637,7 @@ class TGAPlotterApp:
         self.redraw()
 
     # ------------------------------------------------------------------
-    # 圖例互動
+    # legend interaction
     # ------------------------------------------------------------------
     def _on_legend_press(self, event):
         if event.inaxes is None: return
@@ -704,19 +704,19 @@ class TGAPlotterApp:
         if leg is None: return
         cfg = self._legend_cfg
         win = tk.Toplevel(self.root)
-        win.title("圖例設定")
+        win.title("Legend Settings")
         win.geometry("320x220")
         win.transient(self.root)
         win.grab_set()
         ff = tk.Frame(win); ff.pack(fill=tk.X, padx=10, pady=6)
         frame_var = tk.BooleanVar(value=cfg['frameon'])
-        tk.Checkbutton(ff, text="顯示外框", variable=frame_var).pack(side=tk.LEFT)
+        tk.Checkbutton(ff, text="Show Frame", variable=frame_var).pack(side=tk.LEFT)
         sf = tk.Frame(win); sf.pack(fill=tk.X, padx=10, pady=6)
-        tk.Label(sf, text="字體大小:").pack(side=tk.LEFT)
+        tk.Label(sf, text="Font Size:").pack(side=tk.LEFT)
         size_var = tk.IntVar(value=cfg['fontsize'])
         tk.Spinbox(sf, from_=6, to=40, textvariable=size_var, width=5).pack(side=tk.LEFT)
         ff2 = tk.Frame(win); ff2.pack(fill=tk.X, padx=10, pady=6)
-        tk.Label(ff2, text="字型:").pack(side=tk.LEFT)
+        tk.Label(ff2, text="Font:").pack(side=tk.LEFT)
         font_var = tk.StringVar(value=cfg['fontname'])
         fonts = ['Arial', 'DejaVu Sans', 'Times New Roman', 'SimHei', 'Microsoft JhengHei']
         tk.OptionMenu(ff2, font_var, *fonts).pack(side=tk.LEFT)
@@ -732,8 +732,8 @@ class TGAPlotterApp:
             self.canvas.draw_idle()
             win.destroy()
         bf = tk.Frame(win); bf.pack(pady=10)
-        tk.Button(bf, text="套用", command=apply_settings, width=10).pack(side=tk.LEFT, padx=5)
-        tk.Button(bf, text="取消", command=win.destroy, width=10).pack(side=tk.LEFT, padx=5)
+        tk.Button(bf, text="Apply", command=apply_settings, width=10).pack(side=tk.LEFT, padx=5)
+        tk.Button(bf, text="Cancel", command=win.destroy, width=10).pack(side=tk.LEFT, padx=5)
 
     def _on_legend_drag(self, event):
         if not self.legend_dragging or event.inaxes is None: return
@@ -767,7 +767,7 @@ class TGAPlotterApp:
         self.canvas.draw()
 
     # ------------------------------------------------------------------
-    # 子刻度
+    # minor ticks
     # ------------------------------------------------------------------
     def _apply_minor(self, axis='x'):
         from matplotlib.ticker import MultipleLocator, FixedLocator, NullLocator
@@ -815,7 +815,7 @@ class TGAPlotterApp:
                 self.ax.yaxis.set_minor_locator(MultipleLocator((hi - lo) / 50.0))
 
     # ------------------------------------------------------------------
-    # 繪圖
+    # plotting
     # ------------------------------------------------------------------
     def redraw(self):
         sizes = {'4:3': (7, 5.25), '16:9': (8, 4.5), '1:1': (6, 6), '3:2': (7.5, 5)}
@@ -848,7 +848,7 @@ class TGAPlotterApp:
                          marker=marker, markersize=self.marker_size_global.get(),
                          linewidth=self.line_width_global.get())
 
-        # 標註
+        # Annotations
         for a in self.annotations:
             if a[0] == 'text':
                 _, x, y, text, color = a
@@ -858,15 +858,15 @@ class TGAPlotterApp:
                 _, x1, y1, x2, y2, color = a
                 self.ax.plot([x1, x2], [y1, y2], color=color, lw=1.5)
 
-        # 版面
+        # layout
         fw = 'bold' if self.title_bold else 'normal'
         xlabel = "Temperature (°C)" if self.xaxis_var.get() == "Temperature" else "Time (s)"
         ylabel = self.Y_MODES.get(ymode, 'Weight (%)')
         self.ax.set_xlabel(xlabel, fontsize=self.title_size, fontweight=fw, fontname=self.font_name)
         self.ax.set_ylabel(ylabel, fontsize=self.title_size, fontweight=fw, fontname=self.font_name)
         self.ax.tick_params(labelsize=self.tick_size)
-        xdir = 'in' if self.xdir_var.get() == '內' else 'out'
-        ydir = 'in' if self.ydir_var.get() == '內' else 'out'
+        xdir = 'in' if self.xdir_var.get() == 'in' else 'out'
+        ydir = 'in' if self.ydir_var.get() == 'in' else 'out'
         tw = self.tick_width_global.get()
         tl = self.tick_len_global.get()
         self.ax.tick_params(axis='x', which='both', direction=xdir, width=tw, length=3.5*tl)
@@ -874,7 +874,7 @@ class TGAPlotterApp:
         self.ax.tick_params(axis='x', which='minor', length=2.1*tl)
         self.ax.tick_params(axis='y', which='minor', length=2.1*tl)
 
-        # 軸範圍
+        # axis range
         if self.curves:
             self.ax.relim()
             self.ax.autoscale()
@@ -911,7 +911,7 @@ class TGAPlotterApp:
                 pass
             self._apply_minor('y')
 
-        # 圖例
+        # legend
         if self.curves:
             cfg = self._legend_cfg
             leg = self.ax.legend(loc='upper right',
@@ -944,22 +944,22 @@ class TGAPlotterApp:
         self.canvas.draw_idle()
 
     # ------------------------------------------------------------------
-    # 輸出
+    # Output
     # ------------------------------------------------------------------
     def save_figure(self):
-        dpi = simpledialog.askinteger("儲存", "DPI（建議 300）:", initialvalue=300, minvalue=50, maxvalue=1200)
+        dpi = simpledialog.askinteger("Save", "DPI (suggest 300):", initialvalue=300, minvalue=50, maxvalue=1200)
         if dpi is None:
             dpi = 300
         f = filedialog.asksaveasfilename(
-            title="儲存圖檔", defaultextension=".png",
+            title="Save Figure", defaultextension=".png",
             filetypes=[("PNG", "*.png"), ("SVG", "*.svg"), ("PDF", "*.pdf")])
         if not f:
             return
         try:
             self.fig.savefig(f, dpi=dpi, bbox_inches='tight')
-            messagebox.showinfo("完成", f"已儲存:\n{f}")
+            messagebox.showinfo("Done", f"Saved:\n{f}")
         except Exception as e:
-            messagebox.showerror("儲存失敗", str(e))
+            messagebox.showerror("Save Failed", str(e))
 
 
 def main():
