@@ -121,7 +121,7 @@ class NyquistPlotterApp:
         main.pack(fill=tk.BOTH, expand=True)
 
         # left controls
-        left = tk.Frame(main, width=320)
+        left = tk.Frame(main, width=360)
         left.pack(side=tk.LEFT, fill=tk.Y, padx=4, pady=4)
         left.pack_propagate(False)
 
@@ -144,11 +144,11 @@ class NyquistPlotterApp:
         # equal aspect
         tk.Label(gf, text="Equal Aspect:").grid(row=0, column=0, sticky="w")
         self.aspect_var = tk.BooleanVar(value=True)
-        tk.Checkbutton(gf, text="(Nyquist convention)", variable=self.aspect_var,
+        tk.Checkbutton(gf, text="(Nyquist)", variable=self.aspect_var,
                        command=self.redraw).grid(row=0, column=1, sticky="w")
         # Show branch (dashed)
         self.branch_var = tk.BooleanVar(value=False)
-        tk.Checkbutton(gf, text="Show branch (dashed)", variable=self.branch_var,
+        tk.Checkbutton(gf, text="Show branch", variable=self.branch_var,
                        command=self.redraw).grid(row=0, column=1, sticky="e")
 
         # curve style (global, 2 rows in container)
@@ -166,7 +166,7 @@ class NyquistPlotterApp:
         tk.Spinbox(cf2, from_=1, to=20, increment=0.5,
                    textvariable=self.marker_size_global, width=4,
                    command=self.redraw).pack(side=tk.LEFT)
-        tk.Label(cf2, text="line width").pack(side=tk.LEFT, padx=(6, 0))
+        tk.Label(cf2, text="lw").pack(side=tk.LEFT, padx=(6, 0))
         self.line_width_global = tk.DoubleVar(value=1.0)    # default 1
         tk.Spinbox(cf2, from_=0.5, to=5, increment=0.1,
                    textvariable=self.line_width_global, width=4,
@@ -174,17 +174,17 @@ class NyquistPlotterApp:
         # row 2 (spine/tick width/length)
         cf3 = tk.Frame(ca_f)
         cf3.pack(fill=tk.X, pady=(2, 0))
-        tk.Label(cf3, text="spine width").pack(side=tk.LEFT, padx=(0, 0))
+        tk.Label(cf3, text="spine").pack(side=tk.LEFT, padx=(0, 0))
         self.spine_width_global = tk.DoubleVar(value=1.1)   # default 1.1
         tk.Spinbox(cf3, from_=0.5, to=5, increment=0.1,
                    textvariable=self.spine_width_global, width=4,
                    command=self.redraw).pack(side=tk.LEFT)
-        tk.Label(cf3, text="tickBold").pack(side=tk.LEFT, padx=(6, 0))
+        tk.Label(cf3, text="tick w").pack(side=tk.LEFT, padx=(6, 0))
         self.tick_width_global = tk.DoubleVar(value=1.0)
         tk.Spinbox(cf3, from_=0.5, to=3, increment=0.5,
                    textvariable=self.tick_width_global, width=4,
                    command=self.redraw).pack(side=tk.LEFT)
-        tk.Label(cf3, text="tick length").pack(side=tk.LEFT, padx=(6, 0))
+        tk.Label(cf3, text="tick len").pack(side=tk.LEFT, padx=(6, 0))
         self.tick_len_global = tk.DoubleVar(value=1.5)      # default 1.5
         tk.Spinbox(cf3, from_=0.5, to=3, increment=0.5,
                    textvariable=self.tick_len_global, width=4,
@@ -249,11 +249,10 @@ class NyquistPlotterApp:
             tk.Entry(f, textvariable=min_var, width=5).pack(side=tk.LEFT)
             tk.Label(f, text="–").pack(side=tk.LEFT)
             tk.Entry(f, textvariable=max_var, width=5).pack(side=tk.LEFT)
-            tk.Label(f, text="N ticks").pack(side=tk.LEFT, padx=(4, 0))
+            tk.Label(f, text="n").pack(side=tk.LEFT, padx=(4, 0))
             tk.Entry(f, textvariable=n_var, width=3).pack(side=tk.LEFT)
             tk.Checkbutton(f, text="min", variable=minor_var,
                            command=self.redraw).pack(side=tk.LEFT, padx=(4, 0))
-            tk.Label(f, text="n minor").pack(side=tk.LEFT)
             tk.Entry(f, textvariable=minor_n_var, width=3).pack(side=tk.LEFT)
             tk.OptionMenu(f, dir_var, 'out', 'in',
                           command=lambda _: self.redraw()).pack(side=tk.LEFT, padx=(4, 0))

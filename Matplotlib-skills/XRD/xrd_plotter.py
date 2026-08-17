@@ -99,7 +99,7 @@ class XRDPlotterApp:
     # ------------------------------------------------------------------
     def _build_ui(self):
         # left control panel
-        left = tk.Frame(self.root, width=320)
+        left = tk.Frame(self.root, width=360)
         left.pack(side=tk.LEFT, fill=tk.Y, padx=4, pady=4)
         left.pack_propagate(False)
 

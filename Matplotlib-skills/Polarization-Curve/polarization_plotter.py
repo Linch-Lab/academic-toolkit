@@ -138,7 +138,7 @@ class PolarizationPlotterApp:
     # UI
     # ------------------------------------------------------------------
     def _build_ui(self):
-        left = tk.Frame(self.root, width=330)
+        left = tk.Frame(self.root, width=360)
         left.pack(side=tk.LEFT, fill=tk.Y, padx=4, pady=4)
         left.pack_propagate(False)
 
@@ -197,7 +197,7 @@ class PolarizationPlotterApp:
         tk.Spinbox(cf2, from_=1, to=20, increment=0.5,
                    textvariable=self.marker_size_global, width=4,
                    command=self.redraw).pack(side=tk.LEFT)
-        tk.Label(cf2, text="line width").pack(side=tk.LEFT, padx=(6, 0))
+        tk.Label(cf2, text="lw").pack(side=tk.LEFT, padx=(6, 0))
         self.line_width_global = tk.DoubleVar(value=2.0)    # default 2
         tk.Spinbox(cf2, from_=0.5, to=5, increment=0.1,
                    textvariable=self.line_width_global, width=4,
@@ -205,17 +205,17 @@ class PolarizationPlotterApp:
         # row 2 (spine/tick width/length)
         cf3 = tk.Frame(ca_f)
         cf3.pack(fill=tk.X, pady=(2, 0))
-        tk.Label(cf3, text="spine width").pack(side=tk.LEFT, padx=(0, 0))
+        tk.Label(cf3, text="spine").pack(side=tk.LEFT, padx=(0, 0))
         self.spine_width_global = tk.DoubleVar(value=1.0)   # default 1
         tk.Spinbox(cf3, from_=0.5, to=5, increment=0.1,
                    textvariable=self.spine_width_global, width=4,
                    command=self.redraw).pack(side=tk.LEFT)
-        tk.Label(cf3, text="tickBold").pack(side=tk.LEFT, padx=(6, 0))
+        tk.Label(cf3, text="tick w").pack(side=tk.LEFT, padx=(6, 0))
         self.tick_width_global = tk.DoubleVar(value=1.0)    # default 1
         tk.Spinbox(cf3, from_=0.5, to=3, increment=0.5,
                    textvariable=self.tick_width_global, width=4,
                    command=self.redraw).pack(side=tk.LEFT)
-        tk.Label(cf3, text="tick length").pack(side=tk.LEFT, padx=(6, 0))
+        tk.Label(cf3, text="tick len").pack(side=tk.LEFT, padx=(6, 0))
         self.tick_len_global = tk.DoubleVar(value=1.0)      # default 1 (ratio)
         tk.Spinbox(cf3, from_=0.5, to=3, increment=0.5,
                    textvariable=self.tick_len_global, width=4,
@@ -279,11 +279,10 @@ class PolarizationPlotterApp:
             tk.Entry(f, textvariable=min_var, width=5).pack(side=tk.LEFT)
             tk.Label(f, text="–").pack(side=tk.LEFT)
             tk.Entry(f, textvariable=max_var, width=5).pack(side=tk.LEFT)
-            tk.Label(f, text="N ticks").pack(side=tk.LEFT, padx=(4, 0))
+            tk.Label(f, text="n").pack(side=tk.LEFT, padx=(4, 0))
             tk.Entry(f, textvariable=n_var, width=3).pack(side=tk.LEFT)
             tk.Checkbutton(f, text="min", variable=minor_var,
                            command=self.redraw).pack(side=tk.LEFT, padx=(4, 0))
-            tk.Label(f, text="n minor").pack(side=tk.LEFT)
             tk.Entry(f, textvariable=minor_n_var, width=3).pack(side=tk.LEFT)
             tk.OptionMenu(f, dir_var, 'out', 'in',
                           command=lambda _: self.redraw()).pack(side=tk.LEFT, padx=(4, 0))
