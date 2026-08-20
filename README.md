@@ -16,6 +16,7 @@
 | **Nyquist Plotter** | EIS Nyquist 圖繪圖 GUI——解析 DRTxECM 匯出 CSV、raw marker / fitted 實線、X/Y 同比例鎖定 | [`Matplotlib-skills/Nyquist-plot/`](Matplotlib-skills/Nyquist-plot/) |
 | **Pt CV Curve Plotter** | CV 曲線繪圖 + ECSA 計算 GUI——多圈自動切分、RHE 換算、陰/陽極吸附面積分 | [`Matplotlib-skills/Pt-CV-Curve/`](Matplotlib-skills/Pt-CV-Curve/) |
 | **TGA Plotter** | 熱重分析繪圖 GUI——NETZSCH 解析、Weight%/失重%/DTG 多模式、多檔案疊加 | [`Matplotlib-skills/TGA-Plotter/`](Matplotlib-skills/TGA-Plotter/) |
+| **Three-Electrode Polarization** | 三電極極化曲線 GUI——參考電位換算、Tafel、過電位 η、iR 補償 | [`Matplotlib-skills/ThreeElectrode-Polarization/`](Matplotlib-skills/ThreeElectrode-Polarization/) |
 
 ## 🚀 快速開始
 
